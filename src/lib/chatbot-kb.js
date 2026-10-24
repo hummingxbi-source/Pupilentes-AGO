@@ -41,8 +41,8 @@ export const QUICK = [
   },
   {
     id: 'tono', chip: '¿Qué tono me queda?',
-    k: ['tono', 'color', 'queda', 'recomienda', 'natural', 'oscuros', 'notorio', 'piel'],
-    a: 'Haz el test “Tu tono” (6 preguntas) y te mostramos tus tres tonos ideales en una persona con tu tono de piel. Como guía rápida: para ojos oscuros y un cambio natural, Gemini Hazel o Breeze Green; para que se note mucho, Angeles N Blue o Angeles N Gray.',
+    k: ['tono', 'color', 'colores', 'queda', 'recomienda', 'natural', 'oscuros', 'notorio', 'piel'],
+    a: 'Tenemos 16 tonos en cuatro familias: Azules, Verdes, Cafés & Miel y Grises. Haz el test “Tu tono” (6 preguntas) y te mostramos tus tres tonos ideales en una persona con tu tono de piel. Como guía rápida: para ojos oscuros y un cambio natural, Gemini Hazel o Breeze Green; para que se note mucho, Angeles N Blue o Angeles N Gray.',
   },
   {
     id: 'puntos', chip: 'Puntos AGO',
@@ -91,8 +91,25 @@ REGLAS
 
 // --- Modo sin IA: emparejamiento por palabras clave (respaldo de la demo) ---
 const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+// Familias de color: el modo básico responde con los tonos reales de cada una
+const FAMS = [
+  { k: ['azul', 'azules', 'blue'], n: 'Azules', tonos: 'Angeles N Blue (azul cielo con contorno, se nota mucho), Chelsea Blue (azul suave y luminoso), Siri Blue (azul hielo) y Ocean Blue (azul profundo)' },
+  { k: ['verde', 'verdes', 'green', 'jade', 'menta', 'aqua'], n: 'Verdes', tonos: 'Breeze Green (verde oliva, el más natural), Siri Green (verde jade), Angeles N Green (verde con contorno) y Mint Green (verde menta claro)' },
+  { k: ['cafe', 'cafes', 'miel', 'avellana', 'hazel', 'caramelo', 'chocolate', 'choco', 'honey'], n: 'Cafés & Miel', tonos: 'Gemini Hazel (avellana dorado), Breeze Hazel (miel claro), Honey Brown (café caramelo, el más discreto) y Choco (chocolate)' },
+  { k: ['gris', 'grises', 'gray', 'grey', 'plata', 'plateado'], n: 'Grises', tonos: 'Cloud Gray (gris nube), Angeles N Gray (gris con contorno, alto contraste), Angeles N Wave Gray (gris ondulado y natural) y Storm Gray (gris humo)' },
+];
+const OTROS_COLORES = ['morado', 'violeta', 'rosa', 'rojo', 'amarillo', 'blanco', 'negro', 'naranja', 'fantasia'];
+
 export function respuestaLocal(texto) {
   const t = norm(texto);
+  const palabras = t.split(/[^a-z0-9]+/);
+  const fams = FAMS.filter((f) => f.k.some((k) => palabras.some((p) => p.startsWith(k))));
+  if (fams.length) {
+    return { text: fams.map((f) => `Sí, en ${f.n} tenemos: ${f.tonos}.`).join('\n\n') + '\n\nTodos cuestan $549 sin graduación y $649 con graduación. Los ves en la Tienda o en el Lookbook.', handoff: false };
+  }
+  if (OTROS_COLORES.some((c) => palabras.some((p) => p.startsWith(c)))) {
+    return { text: 'En la tienda en línea manejamos cuatro familias: Azules, Verdes, Cafés & Miel y Grises. Para otros colores o lentes de fantasía, pregúntanos por WhatsApp qué hay disponible.', handoff: true };
+  }
   let mejor = null, score = 0;
   for (const q of QUICK) {
     const s = q.k.reduce((a, k) => a + (t.includes(k) ? 1 : 0), 0);
