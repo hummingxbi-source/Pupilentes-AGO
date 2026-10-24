@@ -38,3 +38,13 @@ npm run build      # genera dist/
 - La historia de `#/nosotros` es INVENTADA para la demo: reemplazar con la real.
 - Precios ($549 plano / $649 graduado), lista real de tonos por familia (los marcados `demo: true` son de relleno), datos bancarios.
 - Cotizador de paquetería y "Generar guía" están simulados; en producción se conectan a la API de Skydropx o Envia.com.
+
+## Asistente (chatbot) · v4.1
+Botón flotante abajo a la derecha (reemplaza al de WhatsApp). Código: `src/chat/ChatBot.jsx`, conocimiento en `src/lib/chatbot-kb.js`, API en `api/chat.js`.
+
+- **Botones rápidos**: se contestan en el navegador, sin IA, sin costo y sin gastar preguntas.
+- **Texto libre**: va a `/api/chat` → Claude Haiku 5.5, máx. 6 preguntas por sesión; lo que no sabe lo deriva a WhatsApp con la duda prellenada.
+- **Sin clave de IA o en hosting estático**: cae solo a "modo básico" por palabras clave.
+- **Protección de costos**: Turnstile (anti-bots) → token de sesión firmado → límite por IP por minuto y por día → límite por sesión → tope diario global → `max_tokens` fijo. Además, poner un límite de gasto mensual en la consola de Anthropic.
+- Configuración: copia `.env.example` a `.env.local` (desarrollo) y a las variables de entorno de Vercel. `npm run dev` ya sirve `/api/chat` localmente.
+- Para cambiar respuestas, precios o tonos que conoce el bot: edita `src/lib/chatbot-kb.js`.

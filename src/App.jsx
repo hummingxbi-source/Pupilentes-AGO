@@ -3,7 +3,8 @@ import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
-import { Nav, Footer, Bag, Toast, WaFab, Curtain, TLink } from './ui';
+import { Nav, Footer, Bag, Toast, Curtain, TLink } from './ui';
+import ChatBot from './chat/ChatBot';
 import Landing from './pages/Landing';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -34,7 +35,9 @@ function Smooth() {
 function DemoPill() {
   const [on, setOn] = useState(false);
   useEffect(() => { const f = () => setOn(scrollY > innerHeight * 0.9); f(); addEventListener('scroll', f, { passive: true }); return () => removeEventListener('scroll', f); }, []);
-  return <div className={on ? '' : 'pre-scroll'}><WaFab /><div className="demo-pill">Demo <TLink to="/panel">Ver panel de la dueña →</TLink></div></div>;
+  const { pathname } = useLocation();
+  // El asistente reemplaza al botón flotante de WhatsApp: resuelve lo básico y deriva lo demás.
+  return <><div className={on ? '' : 'pre-scroll'}><div className="demo-pill">Demo <TLink to="/panel">Ver panel de la dueña →</TLink></div></div><ChatBot visible={on || pathname !== '/'} /></>;
 }
 
 function Shop({ children, dark, bare }) {
