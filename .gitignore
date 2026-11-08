@@ -26,3 +26,6 @@ dist-ssr
 
 # Original image drop folder
 public/img/originales/
+
+# Documentos de la clienta (no van al repo)
+Cotizacion_*.pdf
