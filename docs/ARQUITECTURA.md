@@ -1,7 +1,10 @@
 # Pupilentes AGO · Arquitectura y plan por fases
 
 > Documento vivo. Es la guía para que cualquier persona del equipo (con Claude) desarrolle el proyecto real, fase por fase.
+> **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
 > Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 8 nov 2026 · **Estado: Fase 0 por iniciar**
+>
+> Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
 
 ---
 
@@ -9,24 +12,24 @@
 
 ### 0.1 Ramas (regla principal)
 
-| Rama | Para qué | Quién la toca | Se publica en |
-|---|---|---|---|
-| **`main`** | **Solo la demo** que ya vio la clienta. Está **congelada**: no se le hace commit hasta el lanzamiento. | Nadie (protegida) | Producción de Cloudflare Pages = link que tiene la clienta |
-| **`develop`** | **Todo lo nuevo** del proyecto real, incluidos los cambios a este documento. | Merge de PRs de fases | Preview fijo: `develop.<proyecto>.pages.dev` |
-| `fase/N-nombre` | Trabajo de una fase o tarea. Sale de `develop` y regresa a `develop` con PR. | Quien desarrolla | Preview propio por rama |
+| Rama | Para qué | Quién la toca |
+|---|---|---|
+| **`demo`** | **Copia congelada de la demo** que vio la clienta (incluye el chatbot). Es la referencia de "lo que ideamos". No se modifica. | Nadie (protegida) |
+| **`main`** | **El proyecto real.** Siempre debe compilar y funcionar en local. | Solo se actualiza con PR |
+| `fase/N-nombre` | Trabajo de una fase o tarea. Sale de `main` y regresa a `main` con PR. | Quien desarrolla |
 
-- Tag **`demo-v1`** en `main` para poder regresar siempre a la demo.
-- **Lanzamiento (Fase 9):** PR de `develop` → `main`. Desde ese momento, `main` es la producción real y la regla cambia a "solo se actualiza `main` con PR desde `develop`".
-- Para pedirle algo a Claude: "Trabajemos la Fase N de `docs/ARQUITECTURA.md`" (en la rama `develop` o una `fase/*`).
+- La demo también queda marcada con el tag **`demo-v1`** (mismo commit que la rama `demo`).
+- **Se trabaja y se prueba en local** (frontend + Supabase local). No hay nada publicado del proyecto nuevo hasta que se decida desplegar.
+- Para recuperar algo de la demo, por ejemplo el chatbot: `git checkout demo -- src/chat` o abrir la rama `demo`.
+- Para pedirle algo a Claude: "Trabajemos la Fase N de `docs/ARQUITECTURA.md`".
 - Al cerrar una tarea se marca su casilla; al cerrar una fase se actualiza el **Estado** de arriba y el **Registro de cambios** (§10).
 - **⚠️** = decisión pendiente; no se construye hasta decidirla.
-- **Project de Claude:** su repo sincronizado debe apuntar a la rama **`develop`**, porque `main` se queda con la versión de la demo.
 
 ### 0.2 ¿Qué pasa con la demo en Vercel? (decidido)
-**Se da de baja en la Fase 0.** La demo (`main`) se publica en Cloudflare Pages, se le manda a la clienta el link nuevo y se borra el proyecto de Vercel.
-- **Por qué:** (1) un solo hosting, sin confusión; (2) el plan Hobby de Vercel es solo para uso personal no comercial, y cuenta como comercial un sitio por el que alguien recibe pago por crearlo o que anuncia la venta de productos [4].
-- **Costo:** la clienta recibe un link nuevo (`<proyecto>.pages.dev`); el de Vercel deja de funcionar. Se le avisa antes.
-- El chatbot de la demo usaba una función de Vercel; en Cloudflare se queda en "modo básico", sin IA, que ya trae programado. Como la clienta lo descartó, no afecta.
+**Se desconecta el repo de Vercel; no se borra nada.** En Vercel: proyecto → *Settings* → *Git* → *Disconnect*.
+- El link que tiene la clienta **sigue funcionando** con la demo tal cual está, pero ya no se actualiza con los cambios del repo.
+- **Hay que desconectarlo antes de subir código a `main`.** Mientras siga conectado, cada push a `main` se publica en el link de la clienta.
+- Más adelante, cuando el proyecto nuevo se despliegue en Cloudflare, se borra el proyecto de Vercel. El plan Hobby de Vercel es solo para uso personal no comercial [4], así que no se usa para producción.
 
 ---
 
@@ -169,7 +172,7 @@ flowchart LR
   /unit  /integracion  /seguridad  /e2e
 /.github/workflows          CI + respaldo diario
 /docs                       este documento
-/api                        (demo, Vercel; se elimina en develop durante la Fase 0)
+/api                        (demo, Vercel; se elimina de main en la Fase 0 — sigue en la rama demo)
 ```
 
 ### 3.2 Modelo de datos
@@ -229,7 +232,7 @@ sequenceDiagram
 
 ## 4. Ambientes
 
-| | Desarrollo | Preview (`develop`, `fase/*`) | Producción |
+| | Desarrollo (donde se trabaja) | Preview (opcional, desde la Fase 0) | Producción (al lanzar) |
 |---|---|---|---|
 | Frontend | `npm run dev` | Cloudflare Pages preview | Cloudflare Pages (`main`) |
 | Backend + BD | **Supabase local** (`supabase start` + `supabase functions serve`) | **Antes del lanzamiento:** el proyecto Supabase de AGO hace de *staging* (aún no hay datos reales). **Después:** modo demo con datos falsos; la integración se prueba en local | Proyecto Supabase de AGO |
@@ -244,21 +247,23 @@ sequenceDiagram
 > Los trámites externos (app de ML, Partner de TikTok, cuentas de Envia.com y MP) **se inician en la Fase 0** porque tardan; la revisión del vendedor de prueba de TikTok puede tardar de 3 a 7 días hábiles [13]. **Ninguna fase depende del Drive** de la clienta.
 
 ### Fase 0 · Cimientos
-**Objetivo:** un solo hosting, el repo listo para trabajar en equipo y el esqueleto del backend.
-- [ ] Tag `demo-v1` en `main`; proteger `main` en GitHub (solo con PR); `develop` como rama de trabajo.
-- [ ] Proyecto en **Cloudflare Pages**: producción = `main` (la demo), previews para `develop` y `fase/*`.
-- [ ] Mandar a la clienta el link nuevo de la demo y **borrar el proyecto de Vercel**.
-- [ ] En `develop`: chatbot oculto (`VITE_CHATBOT=false`); quitar la carpeta `api/` de Vercel.
-- [ ] Proyecto **Supabase** (2.º Free) + Supabase CLI local + `config.toml` + primera migración vacía.
-- [ ] Edge Function de prueba (`salud`) desplegada y llamada desde el frontend del preview.
+**Objetivo:** el repo listo para trabajar en equipo, todo corriendo en local y el esqueleto del backend.
+- [x] Rama `demo` + tag `demo-v1` con la demo congelada; `main` para el proyecto real.
+- [ ] **Desconectar el repo de Vercel** (§0.2). Va antes de cualquier cambio de código en `main`.
+- [ ] Proteger `main` y `demo` en GitHub (`main` solo con PR; `demo` sin cambios).
+- [ ] En `main`: chatbot oculto (`VITE_CHATBOT=false`); quitar la carpeta `api/` de Vercel (sigue en la rama `demo`).
+- [ ] Supabase CLI local + `supabase/config.toml` + primera migración vacía; `supabase start` funciona.
+- [ ] Edge Function de prueba (`salud`) corriendo con `supabase functions serve` y llamada desde el frontend local.
+- [ ] Proyecto **Supabase** en la nube (2.º Free), vinculado pero sin datos reales.
+- [ ] Proyecto en **Cloudflare Pages** conectado a `main` (opcional hasta querer compartir un preview).
 - [ ] Supabase Cron llamando a `cron-conciliar` (vacía) cada 10 min. Verificar que eso evita la pausa del proyecto.
 - [ ] Bucket **R2**: público para fotos de catálogo, privado para comprobantes y guías.
 - [ ] Estructura de carpetas de §3.1 y `.env.example` actualizado.
 - [ ] GitHub Actions: CI (build, `npm audit`, gitleaks) + respaldo diario de la BD a R2.
 - [ ] **Iniciar trámites:** app de desarrolladores de ML, Partner de TikTok Shop, cuenta Envia.com (sandbox) y credenciales de prueba de Mercado Pago.
 
-**Probar a mano:** la demo funciona en el link de Cloudflare; el preview de `develop` llama a la Edge Function `salud`; el cron aparece en el historial de Supabase.
-**Terminado cuando:** Vercel está apagado, el CI pasa y `develop` tiene el esqueleto completo.
+**Probar a mano:** cualquiera del equipo clona el repo, sigue el `README.md` y levanta frontend + Supabase local; el frontend llama a la Edge Function `salud`.
+**Terminado cuando:** Vercel está desconectado, el CI pasa y `main` tiene el esqueleto completo.
 
 ### Fase 1 · Base de datos y catálogo semilla (sin Drive)
 **Objetivo:** la tienda lee de la BD con un catálogo de trabajo realista.
@@ -332,7 +337,7 @@ sequenceDiagram
 **Automáticas:** una clienta no ve datos de otra (RLS); no se usan más puntos de los disponibles; límite de envío de códigos.
 
 ### Fase 8 · Endurecimiento y pruebas E2E automáticas
-- [ ] Suite **Playwright** (§7) en CI contra el preview de `develop`.
+- [ ] Suite **Playwright** (§7) en CI contra el entorno local o un preview.
 - [ ] Escaneo OWASP ZAP *baseline* contra el preview.
 - [ ] Alertas si fallan webhooks, la conciliación o el respaldo.
 - [ ] Prueba de restauración del respaldo.
@@ -344,7 +349,7 @@ sequenceDiagram
 - [ ] Analítica sin cookies (Cloudflare Web Analytics).
 - [ ] **Aviso de privacidad y términos.** ⚠️ Validar con un asesor si guardar graduaciones o recetas y vender lentes graduados tiene requisitos especiales.
 - [ ] ⚠️ Decisión final de §2.2 (Supabase Free o Pro).
-- [ ] **PR `develop` → `main`** (la demo queda guardada en el tag `demo-v1`). Desde aquí `main` = producción real.
+- [ ] Despliegue de `main` a producción (Cloudflare Pages + proyecto Supabase) y **borrar el proyecto de Vercel**. Avisar a la clienta del link nuevo.
 - [ ] Manual corto para la clienta.
 
 ### Tareas paralelas (no bloquean)
@@ -353,7 +358,7 @@ sequenceDiagram
 - **C. Catálogo real:** cuando llegue el Drive se pasa a la plantilla y se corre `importar-catalogo`.
 
 ### Fuera de alcance (fase futura)
-- Chatbot: el código está en `src/chat` y en el historial de `main`.
+- Chatbot: completo y funcionando en la rama `demo` (`src/chat`, `src/lib/chatbot-kb.js`, `api/`). Para retomarlo, se trae de ahí.
 
 ---
 
@@ -437,7 +442,7 @@ sequenceDiagram
 - [ ] ¿RFC dado de alta en Mercado Pago?
 - [ ] Accesos para autorizar apps: ML, TikTok Shop, Mercado Pago.
 - [ ] Datos reales: precios web, historia de la marca, datos bancarios, políticas de envío y devolución, dominio deseado.
-- [ ] Aviso de que el link de la demo cambia (Fase 0).
+- [ ] Aviso de que el link cambia (al lanzar, Fase 9).
 
 ---
 
@@ -448,6 +453,7 @@ sequenceDiagram
 | 8 nov 2026 | Primera versión. |
 | 8 nov 2026 | Chatbot fuera de alcance. Envíos: Envia.com. Login por correo (Resend). BD de pruebas decidida. Archivos en R2. La Fase 1 no depende del Drive. Aviso de privacidad al final. |
 | 8 nov 2026 | **Backend en Supabase** (Edge Functions + Cron) en lugar de Cloudflare Functions; Cloudflare solo para frontend y R2. **Ramas:** `main` = demo congelada hasta el lanzamiento, `develop` = proyecto nuevo. La demo pasa a Cloudflare y se borra Vercel en la Fase 0. |
+| 8 nov 2026 | **Ramas finales:** `demo` (+ tag `demo-v1`) guarda la demo congelada; `main` = proyecto real; `fase/*` → PR a `main`. Vercel solo se **desconecta** (el link de la clienta sigue mostrando la demo). Se trabaja en local. Nuevos: `README.md` (cómo empezar) y `docs/FRONTEND.md` (la demo es punto de partida, no diseño cerrado). |
 
 ---
 

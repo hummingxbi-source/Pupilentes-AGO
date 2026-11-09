@@ -2,15 +2,19 @@
 
 Tienda en línea de pupilentes de color (estéticos y graduados) + panel de la dueña. Proyecto de HummingX BI.
 
-**Antes de trabajar, lee `docs/ARQUITECTURA.md`.** Ahí están las ramas, el alcance, la arquitectura, el modelo de datos, las fases, el estado actual y las decisiones pendientes (⚠️).
+**Antes de trabajar, lee `docs/ARQUITECTURA.md`** (ramas, alcance, arquitectura, modelo de datos, fases, estado, decisiones pendientes ⚠️) y, si tocas UI, `docs/FRONTEND.md`.
 
 ## Ramas (importante)
-- `main` = **la demo que vio la clienta, congelada.** No hacer commits ni merges a `main` hasta el lanzamiento (Fase 9).
-- `develop` = **todo el trabajo nuevo** (incluidos cambios a `docs/`).
-- `fase/N-nombre` sale de `develop` y regresa con PR a `develop`.
+- `main` = **proyecto real.** Se actualiza solo con PR.
+- `fase/N-nombre` sale de `main` y regresa con PR a `main`.
+- `demo` (+ tag `demo-v1`) = **la demo congelada.** No se modifica; solo se consulta o se trae código de ahí (p. ej. el chatbot).
+- Mientras Vercel siga conectado al repo, **no subir código a `main`** (se publicaría en el link de la clienta). Ver ARQUITECTURA §0.2.
 
 ## Alcance en una línea
 Funcionalidades de la demo hechas reales + Mercado Pago + sincronización de stock con Mercado Libre y TikTok Shop. El **chatbot está fuera de alcance** (fase futura): se oculta con `VITE_CHATBOT=false`.
+
+## Frontend
+La demo es **punto de partida, no diseño cerrado**: se conservan los componentes y se les cambia la fuente de datos (de `localStorage`/datos fijos a Supabase), una pantalla por fase. Lo visual se puede cambiar; las reglas de negocio de `docs/FRONTEND.md` §3 no.
 
 ## Stack
 - Frontend: Vite + React 18, React Router, Zustand, GSAP → **Cloudflare Pages**.
@@ -20,11 +24,11 @@ Funcionalidades de la demo hechas reales + Mercado Pago + sincronización de sto
 - Pagos: Mercado Pago Checkout Pro + transferencia. Envíos: Envia.com.
 
 ## Comandos
-- `npm run dev` — frontend
-- `npm run build` — build a `dist/`
-- (Fase 0+) `supabase start` — BD local · `supabase functions serve` — Edge Functions locales · `supabase test db` — pruebas pgTAP
+- `npm run dev` — frontend · `npm run build` — build a `dist/`
+- (Fase 0+) `supabase start` · `supabase functions serve` · `supabase test db`
 
 ## Reglas
+- Se trabaja y prueba **en local**; desplegar es una decisión aparte.
 - Stock en **pares** (1 unidad = 1 caja). Solo se modifica con la función SQL `mover_stock`, llamada desde Edge Functions.
 - Precios, totales, puntos y stock se calculan en el servidor; nunca confiar en el navegador.
 - RLS en todas las tablas. La llave de servicio solo vive en los secrets de Supabase.
