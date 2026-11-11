@@ -52,6 +52,16 @@ node scripts/importar-catalogo.mjs archivo.xlsx --fotos carpeta --aplicar   # ca
 ```
 Formato y detalles: [`plantillas/LEEME.md`](plantillas/LEEME.md).
 
+### Cuentas del panel (no hay registro abierto)
+```bash
+export SUPABASE_SECRET_KEY=sb_secret_…          # la "Secret key" de `supabase status`
+node scripts/cuentas-panel.mjs crear --correo dueña@ejemplo.mx --rol duena   # imprime una contraseña temporal
+node scripts/cuentas-panel.mjs lista
+node scripts/cuentas-panel.mjs reiniciar-mfa --correo dueña@ejemplo.mx        # perdió su teléfono (confirma identidad antes)
+node scripts/cuentas-panel.mjs quitar --correo exayudante@ejemplo.mx
+```
+Al entrar a `/panel` por primera vez se da de alta la app autenticadora (Google o Microsoft Authenticator).
+
 ### Pruebas (las mismas que corre el CI en cada push)
 ```bash
 npm run lint                                   # ESLint

@@ -879,3 +879,18 @@ table.inv{border-collapse:separate;border-spacing:0;font:400 13px var(--mono);mi
   .chat-panel ~ .chat-fab,.chat-fab[aria-expanded="true"]{display:none}
   .chat-f input{font-size:16px} /* evita el zoom de iOS */
 }
+
+/* ---------- Panel · acceso (Fase 2) ---------- */
+.acceso{min-height:100svh;display:grid;place-items:center;background:var(--paper);padding:24px 16px}
+.acceso-box{width:min(420px,100%);background:var(--white);border:1px solid var(--line);border-radius:var(--r);padding:28px 24px;box-shadow:0 20px 60px -30px rgba(0,0,0,.25)}
+.acceso-box .brand{display:flex;align-items:center;gap:10px;font:500 12px var(--mono);letter-spacing:.2em}
+.acceso-box .brand img{width:30px;height:30px;border-radius:50%}
+.acceso-box h1{font-size:26px}
+.pasos{margin:0 0 14px;padding-left:18px;font-size:14px;line-height:1.6;color:var(--ink-2)}
+.qr{display:block;margin:8px auto;background:#fff;border-radius:8px;border:1px solid var(--line)}
+.err{color:var(--bad);font-size:13.5px;margin-top:10px}
+.tabla-prev{width:100%;border-collapse:collapse;font-size:13px}
+.tabla-prev th,.tabla-prev td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+.tabla-prev tr.mal td{color:var(--bad);background:rgba(180,71,47,.06)}
+.inv-btn{padding:6px 10px;border-radius:8px;font-size:13px}
+.inv-btn.z{color:var(--mute-2)}.inv-btn.lo{color:var(--gold-d);background:var(--gold-xl)}

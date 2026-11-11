@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { construirPlan, parsearGraduaciones, generarSku, codigoMarca, slug, ESCALA } from '../../scripts/catalogo/plan.mjs';
+import { construirPlan, parsearGraduaciones, generarSku, codigoMarca, slug, ESCALA } from '../../supabase/functions/_shared/catalogo/plan.js';
 import { generarSql } from '../../scripts/catalogo/sql.mjs';
 import { generarSemilla, SEED } from '../../scripts/generar-semilla.mjs';
 
@@ -75,14 +75,18 @@ describe('construirPlan', () => {
 });
 
 describe('SQL', () => {
-  it('escapa comillas y el stock inicial es idempotente por SKU', () => {
+  it('llama a aplicar_catalogo con el plan en JSON (sin escapes frágiles)', () => {
     const { plan: p } = plan(['O\'Brien', 'Lin\'ea', 'lente', 'Azul', 'azul', '', 'neutro', '100', '3', '', "it's"]);
     const sql = generarSql(p);
-    expect(sql).toContain("'O''Brien'");
-    expect(sql).toContain("'inicial:OB-LIN-EA-AZUL-N'");
-    expect(sql).toMatch(/^begin;$/m);
-    expect(sql).toMatch(/^commit;$/m);
+    expect(sql).toMatch(/^select public\.aplicar_catalogo\(\$plan\$/m);
+    const json = JSON.parse(sql.slice(sql.indexOf('$plan$') + 6, sql.lastIndexOf('$plan$')));
+    expect(json.marcas[0].nombre).toBe("O'Brien");
+    expect(json.variantes[0]).toMatchObject({ sku: 'OB-LIN-EA-AZUL-N', stock: 3 });
     expect(sql).not.toMatch(/update public\.variantes set stock/);
+  });
+  it('rechaza fotos sin URL publicada', () => {
+    const { plan: p } = plan(['UL', 'X', 'lente', 'Azul', 'azul', '', '', '100', '1', 'foto.jpg', '']);
+    expect(() => generarSql(p)).toThrow(/no tiene URL/);
   });
 });
 

@@ -28,7 +28,8 @@ La demo es **punto de partida, no diseño cerrado**: se conservan los componente
 - `npm run lint` · `npm test` (Vitest) · `deno test --allow-env tests/unit/funciones` (Edge Functions)
 - `supabase start` · `supabase functions serve` · `supabase test db` (pgTAP) · `npm run test:concurrencia`
 - Catálogo: `npm run semilla` (seed.sql desde `plantillas/catalogo-semilla.csv`) · `node scripts/importar-catalogo.mjs` (ver `plantillas/LEEME.md`)
-- La tienda lee el catálogo SOLO de la vista `catalogo_publico` vía `src/lib/tienda.js`; el panel sigue en datos de demo hasta la Fase 2.
+- La tienda lee el catálogo SOLO de la vista `catalogo_publico` vía `src/lib/tienda.js`. El panel (`src/panel`) lee la BD con la sesión de la dueña (RLS + MFA) y todo lo que mueve stock o crea catálogo pasa por Edge Functions.
+- Guardar catálogo = `public.aplicar_catalogo` (una sola implementación para terminal, panel y semilla). Cuentas del panel: `scripts/cuentas-panel.mjs`.
 - El CI (`.github/workflows/ci.yml`) corre todo esto en cada push.
 
 ## Reglas
