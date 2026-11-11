@@ -2,7 +2,7 @@
 
 > Documento vivo. Es la guía para que cualquier persona del equipo (con Claude) desarrolle el proyecto real, fase por fase.
 > **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
-> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 11 nov 2026 (v2.1) · **Estado: Fase 0 — código terminado y verificado en local** (rama `fase/0-cimientos`). Pendiente: PR a `main`, repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
+> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 11 nov 2026 (v2.2) · **Estado: Fase 0 cerrada (PR #3). Fase 1 — código terminado** (rama `fase/1-catalogo`), pendiente de verificar en una Mac con Docker. Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
 >
 > Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
 
@@ -222,7 +222,8 @@ Convenciones: dinero en `numeric(10,2)` (nunca decimales flotantes; en TypeScrip
 | Tabla | Campos clave | Notas |
 |---|---|---|
 | `marcas` | id, nombre | Urban Layer, Freshlady, … |
-| `productos` | id, marca_id, nombre (línea/modelo), tipo (`lente`/`accesorio`), familia de color, descripción, activo | "Línea Cloud" |
+| `productos` | id, marca_id, slug, nombre (línea/modelo), tipo (`lente`/`accesorio`), alias, descripción, destacado, orden, activo | "Angeles N"; en accesorios es el producto completo |
+| `tonos` | id, producto_id, slug (único, p. ej. `angeles-n-blue`), color/diseño, nombre, alias, **familia**, intensidad, descripción, iris/filtro (ilustración), destacado, orden, activo | **Agregada en la Fase 1:** familia, alias y fotos son del color, no de cada graduación |
 | `variantes` | id, producto_id, **sku** (único), color/diseño, duración (`trimestral`/`semestral`/`anual`/null), **graduación** (null = neutro), precio, **stock** (pares físicos), **stock_reservado**, activo | Unidad = **par**. Disponible = `stock − stock_reservado`. `stock` y `stock_reservado` **no son editables** por ningún rol de la API (permiso por columna) |
 | `imagenes` | id, producto_id, variante_id (null = general), graduación (opcional), url_r2, orden | Fotos por graduación |
 | `publicaciones_canal` | id, variante_id, canal (`ml`/`tiktok`), id_externo_item, id_externo_variante, activo, ultimo_sync | **N publicaciones por variante** |
@@ -372,13 +373,13 @@ Reglas del flujo:
 
 ### Fase 1 · Base de datos y catálogo semilla (sin Drive)
 **Objetivo:** la tienda lee de la BD con un catálogo de trabajo realista.
-- [ ] Migraciones de §3.2 con **RLS en todas las tablas** de `public` y permisos por columna en `variantes`.
-- [ ] Vista `catalogo_publico` (única lectura del público).
-- [ ] Funciones `reservar_stock`, `confirmar_venta`, `liberar_reserva` y `mover_stock` + pruebas pgTAP.
-- [ ] **Catálogo semilla** (`seed.sql`) con lo visto en ML y TikTok: marcas, líneas, colores, duraciones, precios y accesorios. Imágenes de la demo como provisionales; graduaciones de ejemplo (−0.50 a −8.00).
-- [ ] Plantilla `plantillas/catalogo.xlsx` + `scripts/importar-catalogo` (Excel/CSV + fotos → BD + R2, fotos a WebP), probado con el semilla.
-- [ ] Frontend: tienda, ficha y filtros leen de la vista, con caché en el navegador (§3.4). Selector: color/diseño → duración → graduación (o "sin graduación"). Siempre por par.
-- [ ] Accesorios como productos simples.
+- [x] Migraciones de §3.2 con **RLS en todas las tablas** de `public` y permisos por columna en `variantes`. *(Más estricto que lo planeado: anon y authenticated no tienen ningún permiso sobre las tablas; el panel recibe en la Fase 2 solo `UPDATE (precio, activo…)`, nunca `stock`.)*
+- [x] Vista `catalogo_publico` (única lectura del público). *(Una fila por tono o accesorio; `disponible` topado en 10 para no revelar el inventario exacto.)*
+- [x] Funciones `reservar_stock`, `confirmar_venta`, `liberar_reserva` y `mover_stock` + pruebas pgTAP. *(+ `liberar_reservas_vencidas`, ya conectada a `cron-conciliar`. Concurrencia real probada con dos conexiones: `npm run test:concurrencia`, 20/20.)*
+- [x] **Catálogo semilla** (`seed.sql`) con lo visto en ML y TikTok: marcas, líneas, colores, duraciones, precios y accesorios. Imágenes de la demo como provisionales; graduaciones de ejemplo (−0.50 a −8.00). *(Sale de `plantillas/catalogo-semilla.csv` con el mismo importador: 20 tonos, 3 accesorios, 471 variantes.)*
+- [x] Plantilla `plantillas/catalogo.xlsx` + `scripts/importar-catalogo` (Excel/CSV + fotos → BD + R2, fotos a WebP), probado con el semilla. *(Destino R2 escrito pero sin probar hasta crear los buckets; mientras, `--destino local`.)*
+- [x] Frontend: tienda, ficha y filtros leen de la vista, con caché en el navegador (§3.4). Selector: color/diseño → duración → graduación (o "sin graduación"). Siempre por par.
+- [x] Accesorios como productos simples.
 
 **Probar a mano:** navegar el catálogo, filtrar por graduación, ver agotados y fotos por graduación.
 **Automáticas:** pgTAP: el anónimo no lee pedidos ni clientas; el anónimo y un usuario con sesión **no pueden ejecutar** las funciones de stock ni hacer `UPDATE` de `stock`; `mover_stock` no baja de 0 y rechaza `ref` repetida; dos reservas simultáneas de la última pieza → solo una pasa; liberar dos veces no duplica. Unitarias del importador.
@@ -644,6 +645,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | 8 nov 2026 | **Backend en Supabase** (Edge Functions + Cron) en lugar de Cloudflare Functions; Cloudflare solo para frontend y R2. **Ramas:** `main` = demo congelada hasta el lanzamiento, `develop` = proyecto nuevo. La demo pasa a Cloudflare y se borra Vercel en la Fase 0. |
 | 8 nov 2026 | **Ramas finales:** `demo` (+ tag `demo-v1`) guarda la demo congelada; `main` = proyecto real; `fase/*` → PR a `main`. Vercel solo se **desconecta** (el link de la clienta sigue mostrando la demo). Se trabaja en local. Nuevos: `README.md` (cómo empezar) y `docs/FRONTEND.md` (la demo es punto de partida, no diseño cerrado). |
 | 10 nov 2026 | **v2 · Revisión de seguridad y pagos.** Detalle abajo. |
+| 11 nov 2026 | **v2.2 · Fase 1 (código).** Rama `fase/1-catalogo`: modelo completo de §3.2 con RLS, vista `catalogo_publico`, 4 funciones de stock + `liberar_reservas_vencidas`, 47 pruebas pgTAP nuevas, prueba de concurrencia real, importador (Excel/CSV + fotos WebP → SQL idempotente), plantilla y semilla, y la tienda leyendo de la BD con caché. Cambios respecto al plan: **tabla `tonos`** (ver §3.2); `stock` protegido quitando todo permiso de tabla en lugar de permisos por columna; la ficha deja de permitir graduación distinta por ojo (se vende por par; si cada ojo es distinto, WhatsApp). |
 | 11 nov 2026 | **v2.1 · Fase 0 (código).** Rama `fase/0-cimientos`: chatbot fuera del build, sin `api/`, `BrowserRouter`, dependencias sin vulnerabilidades, `_headers`, Supabase local (config, 2 migraciones, pgTAP), `_shared`, `salud`, `cron-conciliar`, CI, Dependabot y respaldo. Cambios respecto al plan: **`xlsx` → ExcelJS** (la versión corregida de `xlsx` solo existe en la CDN de SheetJS, que no se puede instalar desde npm ni revisar con `npm audit`); el `REVOKE EXECUTE` a `PUBLIC` se hace **sin `IN SCHEMA`**, porque por esquema no se puede quitar un privilegio global (lo detectó la prueba pgTAP); el cron usa un **secreto propio** (`x-cron-secret`) en lugar de la llave secreta del proyecto. |
 
 **Cambios de la v2 (10 nov 2026):**

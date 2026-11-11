@@ -5,6 +5,7 @@ import { useGSAP } from '@gsap/react';
 import { ArrowLeft, ArrowRight, Upload, Check, MessageCircle, Lock, Sparkles } from 'lucide-react';
 import { useStore, normTel, puntosDe, PUNTO_MXN } from '../lib/store';
 import { ENTREGAS, cotizarPaqueteria, cotizarDidi, ALCALDIAS, mxn, waLink } from '../lib/catalog';
+import { useProductos } from '../lib/tienda';
 import { LOGO, TLink, Iris } from '../ui';
 
 const HORAS = ['12:00', '15:30', '18:00'];
@@ -22,7 +23,8 @@ async function comprimir(file) {
 const VACIA = { calle: '', colonia: '', ciudad: '', estado: '', cp: '' };
 
 export default function Checkout() {
-  const { bolsa, crearPedido, notificar, clientes, pedidos, productos, guardarCliente, login } = useStore();
+  const { bolsa, crearPedido, notificar, clientes, pedidos, guardarCliente, login } = useStore();
+  const productos = useProductos();
   const nav = useNavigate();
   const root = useRef();
   const [paso, setPaso] = useState(0);
@@ -185,7 +187,7 @@ export default function Checkout() {
           <p className="eyebrow" style={{ marginBottom: 12 }}>Tu pedido</p>
           {bolsa.map((b, i) => { const p = productos.find((x) => x.id === b.id); return (
             <div key={i} className="cx-it">{p?.tipo === 'lente' ? <Iris p={p} size={48} glint={false} /> : <span className="iris" style={{ width: 48, background: 'var(--sand)' }} />}
-              <span style={{ flex: 1 }}><b>{b.cant}× {b.nombre}</b>{(b.od !== '0.00' || b.oi !== '0.00') && <span className="mono mute" style={{ display: 'block', fontSize: 12 }}>OD {b.od} · OI {b.oi}</span>}</span><span className="mono">{mxn(b.precio * b.cant)}</span></div>); })}
+              <span style={{ flex: 1 }}><b>{b.cant}× {b.nombre}</b>{(b.graduacion ?? b.od) !== '0.00' && <span className="mono mute" style={{ display: 'block', fontSize: 12 }}>Graduación {b.graduacion ?? b.od} · el par</span>}</span><span className="mono">{mxn(b.precio * b.cant)}</span></div>); })}
           <div style={{ borderTop: '1px solid var(--line)', margin: '12px 0' }} />
           <div className="sum"><span>Subtotal</span><span className="mono">{mxn(sub)}</span></div>
           {desc > 0 && <div className="sum gold"><span>Puntos AGO</span><span className="mono">−{mxn(desc)}</span></div>}

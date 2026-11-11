@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Check, RotateCcw, ShoppingBag } from 'lucide-rea
 import { Iris, ProductSheet, TLink } from '../ui';
 import { useStore, piezas } from '../lib/store';
 import { A, FAMILIAS, GRADS, INTENSIDAD, mxn, familia } from '../lib/catalog';
+import { useProductos, LOOKBOOK } from '../lib/tienda';
 
 const OJOS = [
   { v: 'negro', l: 'Negros', s: 'o café muy oscuro', fam: 'cafe', f: 'brightness(.32) saturate(.6)' },
@@ -28,7 +29,7 @@ function puntuar(p, r) {
   if (['fiesta', 'fotos'].includes(r.ocasion)) { s += 4 * p.intensidad; if (p.intensidad > 1) why.push('Se luce en fotos y con luz de noche.'); } else { s += 4 * (3 - p.intensidad); if (p.intensidad < 3) why.push('Discreto para usar todos los días.'); }
   if (r.piel === 'clara' && ['azul', 'gris'].includes(p.familia)) { s += 5; why.push('Los fríos contrastan muy bonito con piel clara.'); }
   if (['morena', 'oscura'].includes(r.piel) && ['cafe', 'verde', 'gris'].includes(p.familia)) { s += 5; why.push('Resalta muchísimo con piel morena.'); }
-  if (r.grad && r.grad !== '0.00') { if (piezas(p, r.grad) >= 2) why.push(`Hay piezas en tu graduación (${r.grad}).`); else { s -= 30; why.push(`Ahorita no hay en ${r.grad}.`); } }
+  if (r.grad && r.grad !== '0.00') { if (piezas(p, r.grad) >= 1) why.push(`Hay piezas en tu graduación (${r.grad}).`); else { s -= 30; why.push(`Ahorita no hay en ${r.grad}.`); } }
   if (p.top) s += 3;
   return { p, match: Math.max(58, Math.min(98, Math.round(s))), why: why.slice(0, 3) };
 }
@@ -36,7 +37,7 @@ function puntuar(p, r) {
 const Q = ({ children, n }) => <h1 className="tq-q"><span className="eyebrow" style={{ color: 'var(--gold-l)', display: 'block', marginBottom: 14 }}>Pregunta {n} de 6</span>{children}</h1>;
 
 export default function Tono() {
-  const productos = useStore((s) => s.productos);
+  const productos = useProductos();
   const [paso, setPaso] = useState(0);
   const [r, setR] = useState({ efecto: 2, familias: [], grad: '' });
   const [usaGrad, setUsaGrad] = useState(null);
@@ -46,7 +47,7 @@ export default function Tono() {
   const root = useRef();
   const fin = paso >= PASOS.length;
 
-  const res = useMemo(() => fin ? productos.filter((p) => p.tipo === 'lente' && p.visible).map((p) => puntuar(p, r)).sort((a, b) => b.match - a.match).slice(0, 3) : [], [fin, r, productos]);
+  const res = useMemo(() => fin ? productos.filter((p) => p.tipo === 'lente' && p.visible && LOOKBOOK.has(p.id)).map((p) => puntuar(p, r)).sort((a, b) => b.match - a.match).slice(0, 3) : [], [fin, r, productos]);
   const modelo = (PIEL.find((x) => x[0] === r.piel) || PIEL[1])[3];
 
   useGSAP(() => {

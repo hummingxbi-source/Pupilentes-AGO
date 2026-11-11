@@ -6,14 +6,16 @@ import { Camera, ShoppingBag, X, MoveHorizontal } from 'lucide-react';
 import { Iris, ProductSheet } from '../ui';
 import { useStore } from '../lib/store';
 import { A, FAMILIAS, texSrc, mxn, INTENSIDAD } from '../lib/catalog';
+import { useProductos, LOOKBOOK } from '../lib/tienda';
 
 const PERSONAS = [[3, 'Ana', 'piel clara'], [1, 'Mariana', 'piel media'], [2, 'Itzel', 'piel morena'], [4, 'Zuri', 'piel oscura']];
 const VISTAS = [['rostro', 'Rostro'], ['mirada', 'Mirada'], ['detalle', 'Detalle']];
 const img = (t, m, v) => A(`img/lookbook/${t === 'antes' ? `antes-${m}` : `${t}-${m}`}-${v}.webp`);
 
 export default function Probador() {
-  const productos = useStore((s) => s.productos);
-  const lentes = productos.filter((p) => p.tipo === 'lente' && p.visible);
+  const productos = useProductos();
+  // Solo los tonos que tienen fotos de lookbook (public/img/lookbook/<tono>-…)
+  const lentes = productos.filter((p) => p.tipo === 'lente' && p.visible && LOOKBOOK.has(p.id));
   const [qs] = useSearchParams();
   const [tono, setTono] = useState(qs.get('tono') || 'angeles-n-blue');
   const [m, setM] = useState(+qs.get('m') || 1);
@@ -25,7 +27,7 @@ export default function Probador() {
   const [cam, setCam] = useState(false);
   const root = useRef(); const stage = useRef();
   const p = lentes.find((x) => x.id === tono) || lentes[0];
-  const famAct = fam || p.familia;
+  const famAct = fam || p?.familia;
 
   useGSAP(() => {
     gsap.from('.lb-head .ln > span', { yPercent: 110, duration: 1.1, ease: 'expo.out', stagger: 0.08, delay: 0.5 });
@@ -44,6 +46,7 @@ export default function Probador() {
   };
   const compNombre = comp === 'antes' ? 'Sin lentes' : lentes.find((x) => x.id === comp)?.nombre;
 
+  if (!p) return <main className="wrap" style={{ padding: '160px 0' }}><p className="empty" role="status">Cargando lookbook…</p></main>;
   return (
     <main className="lbk" ref={root}>
       <div className="wrap">

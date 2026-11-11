@@ -1,0 +1,44 @@
+marca,linea,tipo,color,clave,alias,familia,intensidad,descripcion,duracion,graduaciones,precio,stock,fotos,destacado,iris,filtro,orden,activo
+Urban Layer,Angeles N,lente,Blue,,Azul cielo con contorno,azul,3,Azul brillante con anillo oscuro que define la mirada. Se nota aun en ojos muy oscuros.,anual,"neutro, -0.50 a -4.00",799,6,img/fotos/clientes/angeles-n-blue.webp,sí,,saturate(1.15),1,sí
+Urban Layer,Angeles N,lente,Blue,,,azul,3,,anual,-4.50 a -8.00,799,3,,sí,,saturate(1.15),1,sí
+Urban Layer,Chelsea,lente,Blue,,Azul suave y luminoso,azul,2,Azul claro con centro cálido; ilumina sin verse artificial.,anual,"neutro, -0.50 a -4.00",799,5,img/fotos/clientes/chelsea-blue.webp,,,brightness(1.22) saturate(.7) hue-rotate(-12deg),2,sí
+Urban Layer,Chelsea,lente,Blue,,,azul,2,,anual,-4.50 a -8.00,799,2,,,,brightness(1.22) saturate(.7) hue-rotate(-12deg),2,sí
+Urban Layer,Siri,lente,Blue,,Azul hielo,azul,2,Azul casi gris con destellos plateados. Elegante para el día.,anual,"neutro, -0.50 a -4.00",799,4,,,,saturate(.45) brightness(1.35),3,sí
+Urban Layer,Siri,lente,Blue,,,azul,2,,anual,-4.50 a -8.00,799,2,,,,saturate(.45) brightness(1.35),3,sí
+Urban Layer,Ocean,lente,Blue,,Azul profundo,azul,3,"Azul marino intenso, ideal para fotos y eventos.",anual,"neutro, -0.50 a -4.00",799,3,,,,saturate(1.6) brightness(.68) hue-rotate(10deg),4,sí
+Urban Layer,Ocean,lente,Blue,,,azul,3,,anual,-4.50 a -8.00,799,0,,,,saturate(1.6) brightness(.68) hue-rotate(10deg),4,sí
+Urban Layer,Breeze,lente,Green,,Verde oliva natural,verde,1,Verde con centro miel. El favorito para un cambio que parece de nacimiento.,anual,"neutro, -0.50 a -4.00",799,6,img/fotos/clientes/02-verde-breeze-green.jpg,sí,,saturate(.85) sepia(.15),5,sí
+Urban Layer,Breeze,lente,Green,,,verde,1,,anual,-4.50 a -8.00,799,3,,sí,,saturate(.85) sepia(.15),5,sí
+Urban Layer,Siri,lente,Green,,Verde jade,verde,2,Verde limpio con reflejos dorados alrededor de la pupila.,anual,"neutro, -0.50 a -4.00",799,4,,,,saturate(1.2) hue-rotate(-22deg) brightness(1.05),6,sí
+Urban Layer,Siri,lente,Green,,,verde,2,,anual,-4.50 a -8.00,799,1,,,,saturate(1.2) hue-rotate(-22deg) brightness(1.05),6,sí
+Urban Layer,Angeles N,lente,Green,,Verde con contorno,verde,3,Verde vivo con aro definido para una mirada marcada.,anual,"neutro, -0.50 a -4.00",799,4,,,,saturate(1.6) brightness(.85),7,sí
+Urban Layer,Angeles N,lente,Green,,,verde,3,,anual,-4.50 a -8.00,799,2,,,,saturate(1.6) brightness(.85),7,sí
+Urban Layer,Mint,lente,Green,,Verde menta claro,verde,2,"Verde aqua muy luminoso, para un look notorio.",anual,"neutro, -0.50 a -4.00",799,3,,,aqua,brightness(1.12),8,sí
+Urban Layer,Mint,lente,Green,,,verde,2,,anual,-4.50 a -8.00,799,0,,,aqua,brightness(1.12),8,sí
+Urban Layer,Gemini,lente,Hazel,,Avellana dorado,cafe,1,Avellana cálido con destellos verdes. Cambio sutil y muy natural.,anual,"neutro, -0.50 a -4.00",799,6,img/fotos/clientes/03-cafe-gemini-hazel.jpg,sí,,none,9,sí
+Urban Layer,Gemini,lente,Hazel,,,cafe,1,,anual,-4.50 a -8.00,799,3,,sí,,none,9,sí
+Urban Layer,Breeze,lente,Hazel,,Miel claro,cafe,2,Miel brillante que aclara ojos oscuros sin perder calidez.,anual,"neutro, -0.50 a -4.00",799,4,,,miel,brightness(1.08),10,sí
+Urban Layer,Breeze,lente,Hazel,,,cafe,2,,anual,-4.50 a -8.00,799,2,,,miel,brightness(1.08),10,sí
+Urban Layer,Honey,lente,Brown,,Café caramelo,cafe,1,"Café caramelo, el tono más discreto del catálogo.",anual,"neutro, -0.50 a -4.00",799,4,,,miel,brightness(.78) saturate(.9),11,sí
+Urban Layer,Honey,lente,Brown,,,cafe,1,,anual,-4.50 a -8.00,799,1,,,miel,brightness(.78) saturate(.9),11,sí
+Urban Layer,Choco,lente,Chocolate,choco,Chocolate,cafe,1,Chocolate profundo: unifica el color y da profundidad.,anual,"neutro, -0.50 a -4.00",799,5,,,cafe,brightness(.85),12,sí
+Urban Layer,Choco,lente,Chocolate,choco,,cafe,1,,anual,-4.50 a -8.00,799,2,,,cafe,brightness(.85),12,sí
+Urban Layer,Cloud,lente,Gray,,Gris nube,gris,2,Gris claro con textura suave; luminoso y elegante.,anual,"neutro, -0.50 a -4.00",799,6,img/fotos/clientes/04-gris-cloud-gray.jpg,sí,,brightness(1.18) contrast(.95),13,sí
+Urban Layer,Cloud,lente,Gray,,,gris,2,,anual,-4.50 a -8.00,799,3,,sí,,brightness(1.18) contrast(.95),13,sí
+Urban Layer,Angeles N,lente,Gray,,Gris con contorno,gris,3,Gris con anillo oscuro; contraste alto que se nota de lejos.,anual,"neutro, -0.50 a -4.00",799,5,img/fotos/clientes/angeles-n-gray.webp,,,contrast(1.2),14,sí
+Urban Layer,Angeles N,lente,Gray,,,gris,3,,anual,-4.50 a -8.00,799,2,,,,contrast(1.2),14,sí
+Urban Layer,Angeles N,lente,Wave Gray,,Gris ondulado,gris,2,Gris con fibras onduladas y centro avellana; muy natural.,anual,"neutro, -0.50 a -4.00",799,4,img/fotos/clientes/angeles-n-wave-gray.webp,,,sepia(.25) brightness(.98),15,sí
+Urban Layer,Angeles N,lente,Wave Gray,,,gris,2,,anual,-4.50 a -8.00,799,2,,,,sepia(.25) brightness(.98),15,sí
+Urban Layer,Storm,lente,Gray,,Gris humo,gris,3,Gris carbón para una mirada misteriosa.,anual,"neutro, -0.50 a -4.00",799,2,,,,brightness(.6) contrast(1.15),16,sí
+Urban Layer,Storm,lente,Gray,,,gris,3,,anual,-4.50 a -8.00,799,0,,,,brightness(.6) contrast(1.15),16,sí
+Freshlady,Freshlady,lente,Azul,,Azul brillante,azul,3,Línea económica para probar un cambio de color.,trimestral,neutro,299,8,,,azul,,20,sí
+Freshlady,Freshlady,lente,Azul,,,azul,3,,anual,"neutro, -0.50 a -6.00",590,2,,,azul,,20,sí
+Freshlady,Freshlady,lente,Verde,,Verde intenso,verde,3,Línea económica para probar un cambio de color.,trimestral,neutro,299,8,,,verde,,21,sí
+Freshlady,Freshlady,lente,Verde,,,verde,3,,anual,"neutro, -0.50 a -6.00",590,2,,,verde,,21,sí
+Freshlady,Freshlady,lente,Gris,,Gris perla,gris,2,Línea económica para probar un cambio de color.,trimestral,neutro,299,8,,,gris,,22,sí
+Freshlady,Freshlady,lente,Gris,,,gris,2,,anual,"neutro, -0.50 a -6.00",590,2,,,gris,,22,sí
+Freshlady,Freshlady,lente,Miel,,Miel suave,cafe,1,Línea económica para probar un cambio de color.,trimestral,neutro,299,8,,,miel,,23,sí
+Freshlady,Freshlady,lente,Miel,,,cafe,1,,anual,"neutro, -0.50 a -6.00",590,2,,,miel,,23,sí
+Renu,Solución multipropósito Renu,accesorio,,,"Limpia, enjuaga y conserva tus lentes",,,,,,129,20,,,,,1,sí
+AGO,Estuche para lentes,accesorio,,,Estuche doble para guardar tu par,,,,,,139,15,,,,,2,sí
+AGO,Estuche con espejo y pinzas,accesorio,,,Para llevar en la bolsa,,,,,,179,10,,,,,3,sí

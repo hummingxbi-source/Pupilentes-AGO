@@ -4,10 +4,12 @@ import { useGSAP } from '@gsap/react';
 import { ArrowRight, LogOut, Gift, RotateCcw, MapPin, Truck } from 'lucide-react';
 import { useStore, normTel, puntosDe, nivelDe, NIVELES, PUNTO_MXN } from '../lib/store';
 import { ESTADOS, PASOS, mxn } from '../lib/catalog';
+import { useProductos, varianteDe, NEUTRO } from '../lib/tienda';
 import { LOGO, TLink, Iris } from '../ui';
 
 export default function Cuenta() {
-  const { sesion, clientes, pedidos, productos, login, logout, guardarCliente, agregar, notificar } = useStore();
+  const { sesion, clientes, pedidos, login, logout, guardarCliente, agregar, notificar } = useStore();
+  const productos = useProductos();
   const root = useRef();
   const [tel, setTel] = useState(''); const [code, setCode] = useState(''); const [fase, setFase] = useState('tel'); const [nuevoNombre, setNuevoNombre] = useState('');
   const c = sesion && clientes[sesion];
@@ -93,7 +95,7 @@ export default function Cuenta() {
           <div className="ac-2">
             <section className="panel-card ac-in"><h3>Tu graduación</h3>
               <div className="eyes"><div className="eye-sel"><div className="lb"><span>OD</span></div><b className="mono" style={{ fontSize: 24 }}>{c.receta?.od || '—'}</b></div><div className="eye-sel"><div className="lb"><span>OI</span></div><b className="mono" style={{ fontSize: 24 }}>{c.receta?.oi || '—'}</b></div></div>
-              {ultimo && <button className="btn sm full" style={{ marginTop: 14 }} onClick={() => { const it = ultimo.items[0]; const p = productos.find((x) => x.id === it.id); agregar({ ...it, cant: 1, precio: it.od === '0.00' && it.oi === '0.00' ? p.precio : p.precioGraduado }); }}><RotateCcw size={15} /> Repetir mi último par</button>}
+              {ultimo && <button className="btn sm full" style={{ marginTop: 14 }} onClick={() => { const it = ultimo.items[0]; const p = productos.find((x) => x.id === it.id); const g = it.graduacion ?? it.od ?? NEUTRO; const v = p && (varianteDe(p, it.duracion ?? p.duraciones.at(-1) ?? null, g) || p.variantes.find((x) => x.graduacion === g)); if (!v || !v.disponible) { notificar('Ese par no está disponible ahorita'); return; } agregar({ id: p.id, sku: v.sku, nombre: p.nombre, alias: p.alias, duracion: v.duracion, graduacion: g, od: g, oi: g, cant: 1, precio: v.precio }); }}><RotateCcw size={15} /> Repetir mi último par</button>}
             </section>
             <section className="panel-card ac-in"><h3>Renovación</h3>
               {renov ? <><div className="big-n">{Math.max(0, Math.round((renov - Date.now()) / 864e5))}<span style={{ fontSize: 16 }} className="mute"> días</span></div><p className="mute" style={{ fontSize: 13.5, marginTop: 6 }}>Tus {ultimo.items[0].nombre} cumplen su año el {renov.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}. Te avisamos por WhatsApp.</p></> : <p className="mute">Sin lentes activos.</p>}
