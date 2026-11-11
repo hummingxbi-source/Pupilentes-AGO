@@ -89,7 +89,7 @@ export function useGo() {
 }
 export function TLink({ to, children, onClick, ...rest }) {
   const go = useGo();
-  return <a href={'#' + to} onClick={(e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); onClick?.(e); go(to); }} {...rest}>{children}</a>;
+  return <a href={to} onClick={(e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); onClick?.(e); go(to); }} {...rest}>{children}</a>;
 }
 
 const NAV = [['/tienda', 'Tienda'], ['/tono', 'Tu tono'], ['/probador', 'Lookbook'], ['/nosotros', 'Nosotros'], ['/cuenta', 'Mi cuenta']];
@@ -152,7 +152,10 @@ export function Nav({ dark }) {
 
 // Navega a una sección de la landing desde cualquier ruta
 export function goTo(sel) {
-  if (!location.hash.match(/^#\/?$/) && location.hash !== '') { sessionStorage.setItem('goto', sel); location.hash = '#/'; return; }
+  if (location.pathname !== '/') {
+    try { sessionStorage.setItem('goto', sel); } catch { /* sin storage */ }
+    location.assign('/'); return;
+  }
   document.querySelector(sel)?.scrollIntoView({ behavior: 'smooth' });
 }
 

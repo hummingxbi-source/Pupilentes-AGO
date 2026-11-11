@@ -2,7 +2,7 @@
 
 > Documento vivo. Es la guía para que cualquier persona del equipo (con Claude) desarrolle el proyecto real, fase por fase.
 > **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
-> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 10 nov 2026 (v2, revisión de seguridad y pagos) · **Estado: Fase 0 por iniciar**
+> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 11 nov 2026 (v2.1) · **Estado: Fase 0 en curso** — el código está en la rama `fase/0-cimientos`; faltan las tareas en servicios externos (ver casillas sin marcar)
 >
 > Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
 
@@ -350,21 +350,21 @@ Reglas del flujo:
 - [x] Rama `demo` + tag `demo-v1` con la demo congelada; `main` para el proyecto real.
 - [ ] **Desconectar el repo de Vercel** (§0.2). Va antes de cualquier cambio de código en `main`.
 - [ ] ⚠️ D1: decidir visibilidad del repo (§0.3) y aplicar la protección de ramas que corresponda.
-- [ ] En `main`: chatbot oculto (`VITE_CHATBOT=false`); quitar la carpeta `api/` de Vercel y el plugin `apiLocal` de `vite.config.js` (siguen en la rama `demo`).
-- [ ] **Dependencias al día.** `npm audit` reporta hoy 7 vulnerabilidades (1 crítica, 3 altas, 3 moderadas): actualizar `jspdf` (crítica; arrastra `dompurify`), `vite` y `react-router-dom`; y **reemplazar `xlsx` de npm**, que no tiene arreglo ahí: la versión corregida (0.19.3 o posterior) solo se publica en el CDN de SheetJS [32].
-- [ ] `HashRouter` → `BrowserRouter` y `base: '/'` en Vite. Cloudflare Pages sirve la raíz para cualquier ruta que no sea un archivo cuando no hay `404.html` [35]. Se hace ahora porque las URL de regreso de Mercado Pago y el enlace de rastreo necesitan rutas normales.
-- [ ] `public/_headers` con cabeceras base: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` (cámara solo para el propio sitio), HSTS y CSP en modo solo-reporte.
-- [ ] Supabase CLI local + `supabase/config.toml` + primera migración: esquema `privado`, `ALTER DEFAULT PRIVILEGES` que quita `EXECUTE` a `public` [27]; `supabase start` funciona.
-- [ ] `_shared`: `auth.ts`, `cors.ts` (solo el origen de la tienda), `turnstile.ts`, `limite.ts`, `validar.ts`.
-- [ ] Edge Function de prueba (`salud`) corriendo con `supabase functions serve` y llamada desde el frontend local.
+- [x] En `main`: chatbot oculto (`VITE_CHATBOT=false`); quitar la carpeta `api/` de Vercel y el plugin `apiLocal` de `vite.config.js` (siguen en la rama `demo`).
+- [x] **Dependencias al día.** `npm audit` reporta hoy 7 vulnerabilidades (1 crítica, 3 altas, 3 moderadas): actualizar `jspdf` (crítica; arrastra `dompurify`), `vite` y `react-router-dom`; y **reemplazar `xlsx` de npm**, que no tiene arreglo ahí: la versión corregida (0.19.3 o posterior) solo se publica en el CDN de SheetJS [32]. *(11 nov: hecho; `npm audit` = 0. `xlsx` se cambió por **ExcelJS** de npm porque la CDN de SheetJS no instala desde el registro de npm; ver Registro de cambios.)*
+- [x] `HashRouter` → `BrowserRouter` y `base: '/'` en Vite. Cloudflare Pages sirve la raíz para cualquier ruta que no sea un archivo cuando no hay `404.html` [35]. Se hace ahora porque las URL de regreso de Mercado Pago y el enlace de rastreo necesitan rutas normales.
+- [x] `public/_headers` con cabeceras base: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` (cámara solo para el propio sitio), HSTS y CSP en modo solo-reporte.
+- [x] Supabase CLI local + `supabase/config.toml` + primera migración: esquema `privado`, `ALTER DEFAULT PRIVILEGES` que quita `EXECUTE` a `public` [27]; `supabase start` funciona. *(11 nov: probado en Postgres 16 + pgTAP fuera de Docker; falta correr `supabase start` en una Mac con Docker.)*
+- [x] `_shared`: `auth.ts`, `cors.ts` (solo el origen de la tienda), `turnstile.ts`, `limite.ts`, `validar.ts` (+ `http.ts` y `deps.ts` con versiones fijas).
+- [x] Edge Function de prueba (`salud`) corriendo con `supabase functions serve` y llamada desde el frontend local. *(El frontend la llama en desarrollo y muestra el resultado en la consola.)*
 - [ ] Proyecto **Supabase** en la nube (2.º Free), en la región más cercana, con las llaves nuevas (§2.3), vinculado pero sin datos reales.
 - [ ] Proyecto en **Cloudflare Pages** conectado a `main` (opcional hasta querer compartir un preview).
-- [ ] Supabase Cron llamando a `cron-conciliar` (vacía) cada 10 min, con secreto en Vault.
+- [x] Supabase Cron llamando a `cron-conciliar` (vacía) cada 10 min, con secreto en Vault. *(Migración lista; en la nube se activa al crear los secretos `url_proyecto` y `secreto_cron` en Vault y `CRON_SECRET` en las funciones.)*
 - [ ] Buckets **R2**: público para fotos de catálogo, privado para comprobantes y guías, privado aparte para respaldos.
-- [ ] Estructura de carpetas de §3.1 y `.env.example` actualizado (hoy todavía describe Vercel y el chatbot).
-- [ ] Alinear `CLAUDE.md`, `README.md` y `docs/FRONTEND.md` con esta v2 (funciones de stock, llaves nuevas, rutas sin `#`, CI en cada push).
-- [ ] **CI en cada push** (§7.1): trabajos `calidad` y `seguridad` desde ya; `bd` en cuanto exista la primera migración. Dependabot activado.
-- [ ] Respaldo diario de la BD a R2, **cifrado** (§6.1, regla 13).
+- [x] Estructura de carpetas de §3.1 y `.env.example` actualizado (hoy todavía describe Vercel y el chatbot).
+- [x] Alinear `CLAUDE.md`, `README.md` y `docs/FRONTEND.md` con esta v2 (funciones de stock, llaves nuevas, rutas sin `#`, CI en cada push).
+- [x] **CI en cada push** (§7.1): trabajos `calidad` y `seguridad` desde ya; `bd` en cuanto exista la primera migración. Dependabot activado.
+- [x] Respaldo diario de la BD a R2, **cifrado** (§6.1, regla 13). *(Flujo `respaldo.yml` listo; se omite con aviso hasta que existan sus secrets en GitHub.)*
 - [ ] **Iniciar trámites:** app de desarrolladores de ML, Partner de TikTok Shop, cuenta Envia.com (sandbox) y credenciales de prueba de Mercado Pago.
 
 **Probar a mano:** cualquiera del equipo clona el repo, sigue el `README.md` y levanta frontend + Supabase local; el frontend llama a la Edge Function `salud`; recargar una ruta interna (p. ej. `/tienda`) no da 404.
@@ -644,6 +644,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | 8 nov 2026 | **Backend en Supabase** (Edge Functions + Cron) en lugar de Cloudflare Functions; Cloudflare solo para frontend y R2. **Ramas:** `main` = demo congelada hasta el lanzamiento, `develop` = proyecto nuevo. La demo pasa a Cloudflare y se borra Vercel en la Fase 0. |
 | 8 nov 2026 | **Ramas finales:** `demo` (+ tag `demo-v1`) guarda la demo congelada; `main` = proyecto real; `fase/*` → PR a `main`. Vercel solo se **desconecta** (el link de la clienta sigue mostrando la demo). Se trabaja en local. Nuevos: `README.md` (cómo empezar) y `docs/FRONTEND.md` (la demo es punto de partida, no diseño cerrado). |
 | 10 nov 2026 | **v2 · Revisión de seguridad y pagos.** Detalle abajo. |
+| 11 nov 2026 | **v2.1 · Fase 0 (código).** Rama `fase/0-cimientos`: chatbot fuera del build, sin `api/`, `BrowserRouter`, dependencias sin vulnerabilidades, `_headers`, Supabase local (config, 2 migraciones, pgTAP), `_shared`, `salud`, `cron-conciliar`, CI, Dependabot y respaldo. Cambios respecto al plan: **`xlsx` → ExcelJS** (la versión corregida de `xlsx` solo existe en la CDN de SheetJS, que no se puede instalar desde npm ni revisar con `npm audit`); el `REVOKE EXECUTE` a `PUBLIC` se hace **sin `IN SCHEMA`**, porque por esquema no se puede quitar un privilegio global (lo detectó la prueba pgTAP); el cron usa un **secreto propio** (`x-cron-secret`) en lugar de la llave secreta del proyecto. |
 
 **Cambios de la v2 (10 nov 2026):**
 

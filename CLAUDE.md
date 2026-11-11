@@ -24,14 +24,18 @@ La demo es **punto de partida, no diseño cerrado**: se conservan los componente
 - Pagos: Mercado Pago Checkout Pro + transferencia. Envíos: Envia.com.
 
 ## Comandos
-- `npm run dev` — frontend · `npm run build` — build a `dist/`
-- (Fase 0+) `supabase start` · `supabase functions serve` · `supabase test db`
+- `npm run dev` — frontend (rutas sin `#`, `BrowserRouter`) · `npm run build` — build a `dist/`
+- `npm run lint` · `npm test` (Vitest) · `deno test --allow-env tests/unit/funciones` (Edge Functions)
+- `supabase start` · `supabase functions serve` · `supabase test db` (pgTAP)
+- El CI (`.github/workflows/ci.yml`) corre todo esto en cada push.
 
 ## Reglas
 - Se trabaja y prueba **en local**; desplegar es una decisión aparte.
-- Stock en **pares** (1 unidad = 1 caja). Solo se modifica con la función SQL `mover_stock`, llamada desde Edge Functions.
+- Stock en **pares** (1 unidad = 1 caja). Solo cambia con las 4 funciones SQL `reservar_stock`, `confirmar_venta`, `liberar_reserva` y `mover_stock`, llamadas desde Edge Functions.
 - Precios, totales, puntos y stock se calculan en el servidor; nunca confiar en el navegador.
-- RLS en todas las tablas. La llave de servicio solo vive en los secrets de Supabase.
+- RLS en todas las tablas. Llaves nuevas: `sb_publishable_…` en el navegador, `sb_secret_…` solo en los secrets de Supabase.
+- Funciones SQL cerradas por defecto (sin `EXECUTE` para `anon`/`authenticated`); se conceden a propósito, normalmente solo a `service_role`.
+- Toda Edge Function comprueba quién la llama con `_shared/auth.ts`; dependencias de Deno con versión fija en `_shared/deps.ts`.
 - Webhooks (`verify_jwt = false`): verificar firma + idempotencia por id de evento.
 - Secretos nunca en el repo (documentar en `.env.example`).
 - Datos de los que dependan decisiones (precios de servicios, límites) se citan con fuente.

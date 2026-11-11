@@ -1,0 +1,15 @@
+# Actualizaciones automáticas de dependencias (ARQUITECTURA §6.1 regla 15).
+# Las importaciones de Deno (supabase/functions/_shared/deps.ts) no las cubre Dependabot:
+# se revisan a mano al iniciar cada fase.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly, day: monday, timezone: America/Mexico_City }
+    open-pull-requests-limit: 5
+    groups:
+      menores:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday, timezone: America/Mexico_City }

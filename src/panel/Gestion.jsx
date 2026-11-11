@@ -5,6 +5,7 @@ import { Download, Upload, Plus, Minus, X, MessageCircle, ImagePlus } from 'luci
 import { useStore } from '../lib/store';
 import { FAMILIAS, GRADS, INTENSIDAD, mxn, familia, A } from '../lib/catalog';
 import { Iris } from '../ui';
+import { leerFilas, descargarXlsx } from '../lib/excel';
 import { waTo } from './Panel';
 
 function useEntrada(dep) {
@@ -25,16 +26,14 @@ export function Inventario() {
   const agotados = lentes.reduce((a, p) => a + GRADS.filter((g) => !(p.stock[g] > 0)).length, 0);
 
   const exportar = async () => {
-    const XLSX = await import('xlsx');
     const rows = [['Tono', 'Familia', ...GRADS], ...productos.filter((p) => p.tipo === 'lente').map((p) => [p.nombre, familia(p.familia).nombre, ...GRADS.map((g) => p.stock[g] ?? 0)])];
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Inventario');
-    XLSX.writeFile(wb, `inventario-ago-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    await descargarXlsx(rows, 'Inventario', `inventario-ago-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
   const importar = async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
-    const XLSX = await import('xlsx');
-    const wb = XLSX.read(await f.arrayBuffer());
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+    let rows;
+    try { rows = await leerFilas(f); } catch { notificar('No pude leer el archivo; usa .xlsx o .csv'); e.target.value = ''; return; }
+    if (!rows.length) { notificar('El archivo está vacío'); e.target.value = ''; return; }
     const head = rows[0].map(String); let n = 0;
     rows.slice(1).forEach((r) => {
       const p = productos.find((x) => x.nombre.toLowerCase() === String(r[0] || '').toLowerCase().trim()); if (!p) return;
@@ -49,7 +48,7 @@ export function Inventario() {
       <div className="pn-h" data-in>
         <div><h1>Inventario</h1><p>Piezas por tono y graduación. Se descuenta solo con cada venta en línea.</p></div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <label className="btn sm ghost" style={{ cursor: 'pointer' }}><Upload size={15} /> Importar Excel<input type="file" accept=".xlsx,.xls,.csv" hidden onChange={importar} /></label>
+          <label className="btn sm ghost" style={{ cursor: 'pointer' }}><Upload size={15} /> Importar Excel<input type="file" accept=".xlsx,.csv" hidden onChange={importar} /></label>
           <button className="btn sm" onClick={exportar}><Download size={15} /> Exportar Excel</button>
         </div>
       </div>

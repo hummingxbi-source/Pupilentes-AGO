@@ -33,13 +33,25 @@ git push -u origin fase/1-catalogo  # y abres un PR a main en GitHub
 ```
 
 ### Backend local (desde la Fase 0)
-Requiere [Docker](https://docs.docker.com/get-docker/) y la [CLI de Supabase](https://supabase.com/docs/guides/local-development/cli/getting-started).
+Requiere [Docker](https://docs.docker.com/get-docker/), la [CLI de Supabase](https://supabase.com/docs/guides/local-development/cli/getting-started) y [Deno](https://docs.deno.com/runtime/getting_started/installation/) (para las pruebas de las funciones).
 ```bash
-supabase start              # Postgres + Auth locales
-supabase functions serve    # Edge Functions locales
-supabase test db            # pruebas de base de datos
+cp .env.example .env.local                                # frontend
+cp supabase/functions/.env.example supabase/functions/.env  # funciones
+supabase start              # Postgres + Auth locales; imprime la URL y la llave publicable
+# pon esa URL y la llave sb_publishable_… en .env.local
+supabase functions serve    # Edge Functions locales (otra terminal)
+npm run dev                 # la consola del navegador debe decir "[AGO] Backend OK"
 ```
-Copia `.env.example` a `.env.local` y llena las variables (nunca subas `.env.local`).
+Nunca subas `.env.local` ni `supabase/functions/.env`.
+
+### Pruebas (las mismas que corre el CI en cada push)
+```bash
+npm run lint                                   # ESLint
+npm test                                       # Vitest (frontend)
+deno test --allow-env tests/unit/funciones     # Edge Functions
+supabase test db                               # pgTAP: permisos y funciones SQL
+npm audit --omit=dev --audit-level=high
+```
 
 ## Stack
 - **Frontend:** Vite + React 18, React Router, Zustand, GSAP → Cloudflare Pages
@@ -49,4 +61,4 @@ Copia `.env.example` a `.env.local` y llena las variables (nunca subas `.env.loc
 - **Pagos:** Mercado Pago Checkout Pro + transferencia · **Envíos:** Envia.com
 
 ## Estado
-Ver el encabezado de [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md). Hoy el código es el de la demo (todo simulado en el navegador); las fases lo van haciendo real.
+Ver el encabezado de [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md). La Fase 0 deja los cimientos (backend local, CI, seguridad base); las pantallas siguen con datos simulados hasta que cada fase las conecta a Supabase.
