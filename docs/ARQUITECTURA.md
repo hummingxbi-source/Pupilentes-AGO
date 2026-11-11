@@ -348,8 +348,8 @@ Reglas del flujo:
 ### Fase 0 · Cimientos
 **Objetivo:** el repo listo para trabajar en equipo, todo corriendo en local, el esqueleto del backend y el CI funcionando.
 - [x] Rama `demo` + tag `demo-v1` con la demo congelada; `main` para el proyecto real.
-- [ ] **Desconectar el repo de Vercel** (§0.2). Va antes de cualquier cambio de código en `main`.
-- [ ] ⚠️ D1: decidir visibilidad del repo (§0.3) y aplicar la protección de ramas que corresponda.
+- [x] **Desconectar el repo de Vercel** (§0.2). Va antes de cualquier cambio de código en `main`. *(11 nov.)*
+- [ ] D1 decidido: **privado** (11 nov). Falta cambiarlo en GitHub (*Settings → General → Danger Zone → Change visibility*). En GitHub Free la protección de ramas no aplica a repos privados [30]: "solo con PR" queda como regla del equipo, respaldada por el CI.
 - [x] En `main`: chatbot oculto (`VITE_CHATBOT=false`); quitar la carpeta `api/` de Vercel y el plugin `apiLocal` de `vite.config.js` (siguen en la rama `demo`).
 - [x] **Dependencias al día.** `npm audit` reporta hoy 7 vulnerabilidades (1 crítica, 3 altas, 3 moderadas): actualizar `jspdf` (crítica; arrastra `dompurify`), `vite` y `react-router-dom`; y **reemplazar `xlsx` de npm**, que no tiene arreglo ahí: la versión corregida (0.19.3 o posterior) solo se publica en el CDN de SheetJS [32]. *(11 nov: hecho; `npm audit` = 0. `xlsx` se cambió por **ExcelJS** de npm porque la CDN de SheetJS no instala desde el registro de npm; ver Registro de cambios.)*
 - [x] `HashRouter` → `BrowserRouter` y `base: '/'` en Vite. Cloudflare Pages sirve la raíz para cualquier ruta que no sea un archivo cuando no hay `404.html` [35]. Se hace ahora porque las URL de regreso de Mercado Pago y el enlace de rastreo necesitan rutas normales.
@@ -357,8 +357,8 @@ Reglas del flujo:
 - [x] Supabase CLI local + `supabase/config.toml` + primera migración: esquema `privado`, `ALTER DEFAULT PRIVILEGES` que quita `EXECUTE` a `public` [27]; `supabase start` funciona. *(11 nov: probado en Postgres 16 + pgTAP fuera de Docker; falta correr `supabase start` en una Mac con Docker.)*
 - [x] `_shared`: `auth.ts`, `cors.ts` (solo el origen de la tienda), `turnstile.ts`, `limite.ts`, `validar.ts` (+ `http.ts` y `deps.ts` con versiones fijas).
 - [x] Edge Function de prueba (`salud`) corriendo con `supabase functions serve` y llamada desde el frontend local. *(El frontend la llama en desarrollo y muestra el resultado en la consola.)*
-- [ ] Proyecto **Supabase** en la nube (2.º Free), en la región más cercana, con las llaves nuevas (§2.3), vinculado pero sin datos reales.
-- [ ] Proyecto en **Cloudflare Pages** conectado a `main` (opcional hasta querer compartir un preview).
+- [ ] *(Pospuesto por decisión del equipo, 11 nov: se crea antes de la Fase 9.)* Proyecto **Supabase** en la nube (2.º Free), en la región más cercana, con las llaves nuevas (§2.3), vinculado pero sin datos reales.
+- [ ] *(Pospuesto, 11 nov.)* Proyecto en **Cloudflare Pages** conectado a `main` (opcional hasta querer compartir un preview).
 - [x] Supabase Cron llamando a `cron-conciliar` (vacía) cada 10 min, con secreto en Vault. *(Migración lista; en la nube se activa al crear los secretos `url_proyecto` y `secreto_cron` en Vault y `CRON_SECRET` en las funciones.)*
 - [ ] Buckets **R2**: público para fotos de catálogo, privado para comprobantes y guías, privado aparte para respaldos.
 - [x] Estructura de carpetas de §3.1 y `.env.example` actualizado (hoy todavía describe Vercel y el chatbot).
@@ -611,7 +611,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 
 | # | Decisión | Propuesta | Bloquea |
 |---|---|---|---|
-| D1 | Repo público o privado (§0.3) | Privado | Fase 0 |
+| D1 | Repo público o privado (§0.3) | **Decidido: privado** (11 nov) | — |
 | D2 | ¿Se acepta efectivo (OXXO) y SPEI dentro de Mercado Pago? Obliga a apartar la pieza hasta 3 días [24] | Tarjeta y SPEI sí; OXXO solo si la clienta lo pide | Fase 3 |
 | D3 | Vigencia de la reserva en transferencia directa | 24 h | Fase 3 |
 | D4 | ¿HummingX conserva una cuenta de administración con MFA tras la entrega (soporte y recuperación)? ¿A nombre de quién quedan Supabase y Cloudflare? | Sí, una cuenta; infraestructura a nombre de HummingX mientras exista la anualidad | Fase 2 |
