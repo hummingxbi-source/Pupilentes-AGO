@@ -1,0 +1,82 @@
+# CI en cada push a cualquier rama y en cada PR a main (ARQUITECTURA §7.1).
+# Un PR no se une a main con el CI en rojo; una fase no se cierra con el CI en rojo.
+# Seguridad del CI (§6.1 regla 16): permisos mínimos, acciones fijadas por commit,
+# nunca `pull_request_target`, sin secretos de producción (proveedores simulados).
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  DENO_VERSION: 'v2.x'
+
+jobs:
+  calidad:
+    name: calidad (lint, tipos, unitarias, build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with: { deno-version: '${{ env.DENO_VERSION }}' }
+      - run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: deno check (Edge Functions)
+        run: deno check supabase/functions/*/index.ts supabase/functions/_shared/*.ts
+      - name: Vitest (frontend)
+        run: npm test
+      - name: deno test (Edge Functions)
+        run: deno test --allow-env tests/unit/funciones
+      - name: Build
+        run: npm run build
+
+  seguridad:
+    name: seguridad (gitleaks, npm audit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { fetch-depth: 0, persist-credentials: false }
+      - name: gitleaks (historial completo)
+        env:
+          GITLEAKS_VERSION: '8.30.1'
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks git --redact --verbose --exit-code 1 .
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - name: npm audit (altas y críticas rompen el CI)
+        run: npm audit --omit=dev --audit-level=high
+
+  bd:
+    name: bd (migraciones desde cero + pgTAP)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with: { version: '2.122.1' }
+      - name: Levantar solo Postgres
+        run: supabase start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: Migraciones y semilla desde cero
+        run: supabase db reset --local
+      - name: pgTAP
+        run: supabase test db
+
+  # integracion: se activa en la Fase 3 (supabase functions serve + tests/integracion y tests/seguridad).
+  # e2e: se activa en la Fase 8 (Playwright, solo en PR a main).

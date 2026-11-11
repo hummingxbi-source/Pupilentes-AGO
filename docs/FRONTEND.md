@@ -55,23 +55,25 @@ No se reescribe el frontend desde cero. El camino es **conservar los componentes
 
 | Ruta | Archivo | Qué es |
 |---|---|---|
-| `#/` | `src/pages/Landing.jsx` | Landing con animaciones |
-| `#/tienda` | `src/pages/Tienda.jsx` | Catálogo por familias + filtro de graduación |
-| `#/checkout` | `src/pages/Checkout.jsx` | Entrega (Metro / DiDi / paquetería) y pago |
-| `#/pedido/:folio` | `src/pages/Pedido.jsx` | Rastreo |
-| `#/tono` | `src/pages/Tono.jsx` | Test de tono |
-| `#/probador` | `src/pages/Probador.jsx` | Lookbook y cámara (MediaPipe) |
-| `#/nosotros` | `src/pages/Nosotros.jsx` | Historia (texto de demo; se reemplaza por el real) |
-| `#/cuenta` | `src/pages/Cuenta.jsx` | Cuenta y puntos |
-| `#/panel` | `src/panel/Panel.jsx`, `src/panel/Gestion.jsx` | Panel de la dueña |
+| `/` | `src/pages/Landing.jsx` | Landing con animaciones |
+| `/tienda` | `src/pages/Tienda.jsx` | Catálogo por familias + filtro de graduación |
+| `/checkout` | `src/pages/Checkout.jsx` | Entrega (Metro / DiDi / paquetería) y pago |
+| `/pedido/:folio` | `src/pages/Pedido.jsx` | Rastreo |
+| `/tono` | `src/pages/Tono.jsx` | Test de tono |
+| `/probador` | `src/pages/Probador.jsx` | Lookbook y cámara (MediaPipe) |
+| `/nosotros` | `src/pages/Nosotros.jsx` | Historia (texto de demo; se reemplaza por el real) |
+| `/cuenta` | `src/pages/Cuenta.jsx` | Cuenta y puntos |
+| `/panel` | `src/panel/Panel.jsx`, `src/panel/Gestion.jsx` | Panel de la dueña |
 | — | `src/lib/store.js` | Estado (Zustand); hoy guarda todo en `localStorage` |
 | — | `src/lib/catalog.js` | Catálogo, precios y cotizadores **simulados** |
+| — | `src/lib/supabase.js`, `src/lib/api.js` | Cliente de Supabase (llave publicable) y llamadas a Edge Functions (Fase 0) |
+| — | `src/lib/excel.js` | Leer/escribir Excel y CSV (ExcelJS, se carga solo al usarse) |
 | — | `src/ui.jsx`, `src/styles.css` | Componentes y estilos compartidos |
 | — | `src/chat/` | Chatbot (**fuera de alcance**; se oculta con `VITE_CHATBOT=false`) |
 
 ## 6. Cosas de la demo que son de relleno
 
-- La historia de `#/nosotros` es **inventada**.
+- La historia de `/nosotros` es **inventada**.
 - Precios, tonos marcados `demo: true` en `catalog.js` y datos bancarios son de ejemplo.
 - Las fotos del lookbook (`public/img/lookbook/`) son **ilustrativas**: lente aplicado por computadora sobre retratos de modelo.
 - Cotizador de paquetería, "Generar guía", login por WhatsApp y puntos están **simulados**.

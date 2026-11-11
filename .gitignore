@@ -29,3 +29,19 @@ public/img/originales/
 
 # Documentos de la clienta (no van al repo)
 Cotizacion_*.pdf
+
+# Variables de entorno (nunca al repo; ver .env.example)
+.env
+.env.*
+!.env.example
+supabase/functions/.env
+!supabase/functions/.env.example
+
+# Supabase CLI
+supabase/.temp
+supabase/.branches
+
+# Respaldos locales (contienen datos personales)
+*.dump
+*.sql.gz
+*.age

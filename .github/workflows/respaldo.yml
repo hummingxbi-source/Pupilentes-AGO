@@ -1,0 +1,68 @@
+# Respaldo diario de la BD a R2, cifrado (ARQUITECTURA §2, §6.1 regla 13).
+# Mientras no existan los secrets (proyecto en la nube aún sin crear), el flujo
+# se salta con un aviso en lugar de fallar.
+#
+# Secrets de GitHub (Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL           cadena de conexión de Postgres (percent-encoded)
+#   AGE_DESTINATARIO          llave PÚBLICA de age (age1…); la privada la guarda el equipo fuera de GitHub
+#   R2_CUENTA_ID              id de la cuenta de Cloudflare
+#   R2_RESPALDO_ACCESS_KEY_ID / R2_RESPALDO_SECRET_ACCESS_KEY
+#                             token de R2 que SOLO puede escribir en el bucket de respaldos
+#   R2_RESPALDO_BUCKET        nombre del bucket privado de respaldos
+# La retención de 30 días se configura como regla de ciclo de vida del bucket en Cloudflare.
+name: Respaldo diario
+
+on:
+  schedule:
+    - cron: '17 9 * * *'   # 03:17 en CDMX (UTC−6)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: respaldo
+  cancel-in-progress: false
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      AGE_DESTINATARIO: ${{ secrets.AGE_DESTINATARIO }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_RESPALDO_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_RESPALDO_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      R2_CUENTA_ID: ${{ secrets.R2_CUENTA_ID }}
+      R2_RESPALDO_BUCKET: ${{ secrets.R2_RESPALDO_BUCKET }}
+    steps:
+      - name: ¿Está configurado?
+        id: config
+        run: |
+          for v in SUPABASE_DB_URL AGE_DESTINATARIO AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY R2_CUENTA_ID R2_RESPALDO_BUCKET; do
+            if [ -z "${!v}" ]; then echo "::warning::Falta el secret $v; respaldo omitido."; echo "listo=no" >> "$GITHUB_OUTPUT"; exit 0; fi
+          done
+          echo "listo=si" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.config.outputs.listo == 'si'
+        with: { persist-credentials: false }
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        if: steps.config.outputs.listo == 'si'
+        with: { version: '2.122.1' }
+      - name: Volcar, cifrar y subir
+        if: steps.config.outputs.listo == 'si'
+        run: |
+          set -euo pipefail
+          umask 077
+          sudo apt-get install -y -qq age >/dev/null
+          FECHA=$(date -u +%Y-%m-%dT%H%MZ)
+          D=$(mktemp -d)
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$D/roles.sql" --role-only
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$D/esquema.sql"
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$D/datos.sql" --use-copy --data-only
+          tar -C "$D" -czf - roles.sql esquema.sql datos.sql | age -r "$AGE_DESTINATARIO" -o "$D/respaldo-$FECHA.tar.gz.age"
+          aws s3 cp "$D/respaldo-$FECHA.tar.gz.age" "s3://$R2_RESPALDO_BUCKET/bd/respaldo-$FECHA.tar.gz.age" \
+            --endpoint-url "https://$R2_CUENTA_ID.r2.cloudflarestorage.com" --only-show-errors
+          rm -rf "$D"
+          echo "Respaldo subido: bd/respaldo-$FECHA.tar.gz.age"
