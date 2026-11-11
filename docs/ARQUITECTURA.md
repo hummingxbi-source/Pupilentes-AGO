@@ -365,7 +365,7 @@ Reglas del flujo:
 - [x] Alinear `CLAUDE.md`, `README.md` y `docs/FRONTEND.md` con esta v2 (funciones de stock, llaves nuevas, rutas sin `#`, CI en cada push).
 - [x] **CI en cada push** (§7.1): trabajos `calidad` y `seguridad` desde ya; `bd` en cuanto exista la primera migración. Dependabot activado.
 - [x] Respaldo diario de la BD a R2, **cifrado** (§6.1, regla 13). *(Flujo `respaldo.yml` listo; se omite con aviso hasta que existan sus secrets en GitHub.)*
-- [ ] **Iniciar trámites:** app de desarrolladores de ML, Partner de TikTok Shop, cuenta Envia.com (sandbox) y credenciales de prueba de Mercado Pago.
+- [ ] *(Movido, 11 nov: cada trámite se hace al iniciar su fase — MP en la 3, Envia en la 4, ML en la 5, TikTok en la 6. Riesgo: la revisión de TikTok tarda 3–7 días hábiles [13]; conviene iniciarla al cerrar la Fase 5.)* **Iniciar trámites:** app de desarrolladores de ML, Partner de TikTok Shop, cuenta Envia.com (sandbox) y credenciales de prueba de Mercado Pago.
 
 **Probar a mano:** cualquiera del equipo clona el repo, sigue el `README.md` y levanta frontend + Supabase local; el frontend llama a la Edge Function `salud`; recargar una ruta interna (p. ej. `/tienda`) no da 404.
 **Terminado cuando:** Vercel está desconectado, `npm audit` no reporta altas ni críticas, el CI pasa en cada push y `main` tiene el esqueleto completo.
