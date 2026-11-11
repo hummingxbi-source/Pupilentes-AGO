@@ -26,9 +26,14 @@ export default function Tienda() {
   const orden = (arr) => [...arr].sort((a, b) => disp(b) - disp(a) || (b.top ? 1 : 0) - (a.top ? 1 : 0));
   const fams = fam === 'todos' ? FAMILIAS : FAMILIAS.filter((f) => f.id === fam);
 
+  // Título: una sola vez. Tarjetas: cada vez que cambia el filtro o llega el catálogo de la BD.
+  // fromTo (no from): si la animación se repite a medias, from() tomaría la posición intermedia
+  // como destino y el título/tarjetas se quedarían atorados a la mitad.
   useGSAP(() => {
-    gsap.from('.shop-head h1 .ln > span', { yPercent: 110, duration: 1.1, ease: 'expo.out', stagger: 0.08 });
-    gsap.from('.card', { y: 40, opacity: 0, duration: 0.9, ease: 'expo.out', stagger: 0.04, clearProps: 'all' });
+    gsap.fromTo('.shop-head h1 .ln > span', { yPercent: 110 }, { yPercent: 0, duration: 1.1, ease: 'expo.out', stagger: 0.08 });
+  }, { scope: root });
+  useGSAP(() => {
+    gsap.fromTo('.card', { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: 'expo.out', stagger: 0.04, clearProps: 'transform,opacity' });
   }, { scope: root, dependencies: [fam, int, grad, productos.length] });
 
   const setFam = (id) => { const n = new URLSearchParams(qs); id === 'todos' ? n.delete('f') : n.set('f', id); setQs(n, { replace: true }); };

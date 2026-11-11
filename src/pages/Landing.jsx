@@ -30,6 +30,8 @@ const PASOS = [
 export default function Landing() {
   const root = useRef();
   const productos = useProductos();
+  // El catálogo puede llegar de la BD después de montar: recalcula los pines y el carrusel con scroll
+  useEffect(() => { if (productos.length) ScrollTrigger.refresh(); }, [productos.length]);
   const [sheet, setSheet] = useState(null);
   const [hi, setHi] = useState(0);
   useEffect(() => { const t = setInterval(() => setHi((i) => (i + 1) % 4), 2800); return () => clearInterval(t); }, []);
