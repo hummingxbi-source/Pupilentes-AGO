@@ -44,12 +44,21 @@ npm run dev                 # la consola del navegador debe decir "[AGO] Backend
 ```
 Nunca subas `.env.local` ni `supabase/functions/.env`.
 
+### Catálogo
+```bash
+npm run semilla                                         # regenera supabase/seed.sql desde plantillas/catalogo-semilla.csv
+node scripts/importar-catalogo.mjs archivo.xlsx --revisar   # valida una plantilla sin tocar nada
+node scripts/importar-catalogo.mjs archivo.xlsx --fotos carpeta --aplicar   # carga en la BD local
+```
+Formato y detalles: [`plantillas/LEEME.md`](plantillas/LEEME.md).
+
 ### Pruebas (las mismas que corre el CI en cada push)
 ```bash
 npm run lint                                   # ESLint
 npm test                                       # Vitest (frontend)
 deno test --allow-env tests/unit/funciones     # Edge Functions
 supabase test db                               # pgTAP: permisos y funciones SQL
+npm run test:concurrencia                      # última pieza comprada en paralelo (BD local)
 npm audit --omit=dev --audit-level=high
 ```
 

@@ -24,7 +24,7 @@ No se reescribe el frontend desde cero. El camino es **conservar los componentes
 
 | Fase | Pantallas que se conectan |
 |---|---|
-| 1 | `Landing`, `Tienda`, ficha de producto (catálogo desde la BD) |
+| 1 ✅ | `Landing`, `Tienda`, ficha de producto, `Tono`, `Probador`, bolsa (catálogo desde la BD). El panel sigue con datos de la demo hasta la Fase 2 |
 | 2 | `/panel`: Inventario, Catálogo, Hoy, Pedidos, Clientas |
 | 3 | `Checkout`, `Pedido` (pagos y rastreo reales) |
 | 4 | `Checkout` (cotizador Envia.com), panel → generar guía |
@@ -66,6 +66,7 @@ No se reescribe el frontend desde cero. El camino es **conservar los componentes
 | `/panel` | `src/panel/Panel.jsx`, `src/panel/Gestion.jsx` | Panel de la dueña |
 | — | `src/lib/store.js` | Estado (Zustand); hoy guarda todo en `localStorage` |
 | — | `src/lib/catalog.js` | Catálogo, precios y cotizadores **simulados** |
+| — | `src/lib/tienda.js` | **Catálogo desde la BD** (vista `catalogo_publico`) con caché en el navegador; lo usan todas las pantallas de la tienda (Fase 1) |
 | — | `src/lib/supabase.js`, `src/lib/api.js` | Cliente de Supabase (llave publicable) y llamadas a Edge Functions (Fase 0) |
 | — | `src/lib/excel.js` | Leer/escribir Excel y CSV (ExcelJS, se carga solo al usarse) |
 | — | `src/ui.jsx`, `src/styles.css` | Componentes y estilos compartidos |

@@ -26,7 +26,9 @@ La demo es **punto de partida, no diseño cerrado**: se conservan los componente
 ## Comandos
 - `npm run dev` — frontend (rutas sin `#`, `BrowserRouter`) · `npm run build` — build a `dist/`
 - `npm run lint` · `npm test` (Vitest) · `deno test --allow-env tests/unit/funciones` (Edge Functions)
-- `supabase start` · `supabase functions serve` · `supabase test db` (pgTAP)
+- `supabase start` · `supabase functions serve` · `supabase test db` (pgTAP) · `npm run test:concurrencia`
+- Catálogo: `npm run semilla` (seed.sql desde `plantillas/catalogo-semilla.csv`) · `node scripts/importar-catalogo.mjs` (ver `plantillas/LEEME.md`)
+- La tienda lee el catálogo SOLO de la vista `catalogo_publico` vía `src/lib/tienda.js`; el panel sigue en datos de demo hasta la Fase 2.
 - El CI (`.github/workflows/ci.yml`) corre todo esto en cada push.
 
 ## Reglas

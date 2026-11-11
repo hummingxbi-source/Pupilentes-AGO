@@ -7,7 +7,7 @@ export default [
   { ignores: ['dist/', 'node_modules/', 'supabase/', 'public/mediapipe/', 'public/models/'] },
   js.configs.recommended,
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.{js,jsx,mjs}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

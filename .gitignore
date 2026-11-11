@@ -45,3 +45,6 @@ supabase/.branches
 *.dump
 *.sql.gz
 *.age
+
+# Fotos importadas en modo local (desarrollo); en producción van a R2
+public/img/catalogo/

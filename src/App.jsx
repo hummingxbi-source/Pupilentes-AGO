@@ -5,6 +5,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import { Nav, Footer, Bag, Toast, Curtain, TLink } from './ui';
 import Landing from './pages/Landing';
+import { useCatalogo } from './lib/tienda';
 
 gsap.registerPlugin(ScrollTrigger);
 const Tienda = lazy(() => import('./pages/Tienda'));
@@ -39,6 +40,18 @@ function Smooth() {
   return null;
 }
 
+// Carga el catálogo de la BD al abrir y lo refresca al volver a la pestaña (usa la caché mientras).
+function CargarCatalogo() {
+  useEffect(() => {
+    const cargar = () => useCatalogo.getState().cargar();
+    cargar();
+    const vis = () => document.visibilityState === 'visible' && cargar();
+    document.addEventListener('visibilitychange', vis);
+    return () => document.removeEventListener('visibilitychange', vis);
+  }, []);
+  return null;
+}
+
 function DemoPill() {
   const [on, setOn] = useState(false);
   useEffect(() => { const f = () => setOn(scrollY > innerHeight * 0.9); f(); addEventListener('scroll', f, { passive: true }); return () => removeEventListener('scroll', f); }, []);
@@ -55,6 +68,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Smooth />
+      <CargarCatalogo />
       <Curtain />
       <Suspense fallback={<div style={{ minHeight: '100svh' }} />}>
         <Routes>

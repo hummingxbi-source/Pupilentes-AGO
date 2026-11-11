@@ -2,8 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Menu, X, MessageCircle, Minus, Plus, Camera, ArrowRight } from 'lucide-react';
 import gsap from 'gsap';
-import { useStore, piezas } from './lib/store';
-import { A, familia, irisSrc, mxn, GRADS, INTENSIDAD, waLink, ACCESORIOS } from './lib/catalog';
+import { useStore } from './lib/store';
+import { A, familia, irisSrc, mxn, INTENSIDAD, waLink } from './lib/catalog';
+import { useProductos, varianteDe, NEUTRO, NOMBRE_DUR, srcsetDe } from './lib/tienda';
 
 export const LOGO = A('logo-pupilentes-ago-512.png');
 
@@ -212,74 +213,92 @@ export function Drawer({ open, onClose, title, children, footer, sheet }) {
   );
 }
 
-function Stock({ p, g }) {
-  const n = piezas(p, g);
-  if (n <= 0) return <div className="st no"><i />Agotada · te avisamos</div>;
-  if (n <= 2) return <div className="st low"><i />Últimas {n} piezas</div>;
+function Stock({ n }) {
+  if (n == null) return null;
+  if (n <= 0) return <div className="st no"><i />Agotado en esta graduación</div>;
+  if (n <= 2) return <div className="st low"><i />{n === 1 ? 'Último par' : `Últimos ${n} pares`}</div>;
   return <div className="st"><i />Disponible</div>;
 }
 
+// Ficha: color/diseño (el tono) → duración → graduación (o "sin graduación").
+// Siempre se vende por PAR: la misma graduación en ambos ojos (FRONTEND.md §3).
+// El precio mostrado es informativo; el que se cobra lo calcula el servidor (Fase 3).
 export function ProductSheet({ p, onClose, grad0 }) {
   const agregar = useStore((s) => s.agregar);
-  const prod = useStore((s) => s.productos.find((x) => x.id === p?.id)) || p;
-  const [grad, setGrad] = useState(false);
-  const [od, setOd] = useState('-1.00');
-  const [oi, setOi] = useState('-1.00');
-  const [igual, setIgual] = useState(true);
+  const productos = useProductos();
+  const prod = productos.find((x) => x.id === p?.id) || p;
+  const [dur, setDur] = useState(null);
+  const [conGrad, setConGrad] = useState(false);
+  const [grad, setGrad] = useState('-1.00');
   const [kit, setKit] = useState(false);
+  const solucion = productos.find((x) => x.tipo === 'accesorio' && /solucion/.test(x.id));
+
   useEffect(() => {
-    if (!p) return;
-    const pr = useStore.getState().productos.find((x) => x.id === p.id) || p;
-    const g = grad0 && grad0 !== '0.00' ? grad0 : GRADS.slice(1).find((x) => piezas(pr, x) >= 2) || '-1.00';
-    setGrad(!!grad0 && grad0 !== '0.00'); setOd(g); setOi(g); setKit(false); setIgual(true);
+    if (!prod?.variantes) return;
+    const d = prod.duraciones.at(-1) ?? null;               // por defecto la más larga
+    const grads = prod.variantes.filter((v) => v.duracion === d && v.graduacion !== NEUTRO);
+    const pedida = grad0 && grad0 !== NEUTRO ? grad0 : null;
+    const g = (pedida && grads.find((v) => v.graduacion === pedida)) || grads.find((v) => v.disponible > 0) || grads[0];
+    setDur(d); setConGrad(!!pedida); setGrad(g?.graduacion ?? '-1.00'); setKit(false);
   }, [p?.id]);
+
+  // Al cambiar de duración, si la graduación elegida no existe ahí, pasa a la primera con existencia
+  useEffect(() => {
+    const gs = (prod?.variantes || []).filter((x) => x.duracion === dur && x.graduacion !== NEUTRO);
+    if (gs.length && !gs.some((x) => x.graduacion === grad)) setGrad((gs.find((x) => x.disponible > 0) || gs[0]).graduacion);
+  }, [dur]);
+
   if (!prod) return <Drawer open={false} onClose={onClose} />;
   const f = familia(prod.familia);
-  const OD = grad ? od : '0.00', OI = grad ? (igual ? od : oi) : '0.00';
-  // existencias en piezas (1 lente = 1 pieza): así se resuelve la graduación distinta por ojo
-  const ok = OD === OI ? piezas(prod, OD) >= 2 : piezas(prod, OD) >= 1 && piezas(prod, OI) >= 1;
-  const precio = grad ? prod.precioGraduado : prod.precio;
+  const deDur = (prod.variantes || []).filter((v) => v.duracion === dur);
+  const gradsDur = deDur.filter((v) => v.graduacion !== NEUTRO);
+  const hayNeutro = deDur.some((v) => v.graduacion === NEUTRO);
+  const usaGrad = conGrad || !hayNeutro;
+  const v = varianteDe(prod, dur, usaGrad ? grad : NEUTRO);
+  const ok = !!v && v.disponible > 0;
+  const precio = v?.precio ?? prod.precio;
+  const solV = solucion?.variantes?.[0];
   const add = () => {
-    agregar({ id: prod.id, nombre: prod.nombre, alias: prod.alias, od: OD, oi: OI, cant: 1, precio });
-    if (kit) agregar({ id: 'solucion', nombre: ACCESORIOS[0].nombre, od: '0.00', oi: '0.00', cant: 1, precio: ACCESORIOS[0].precio });
+    agregar({ id: prod.id, sku: v.sku, nombre: prod.nombre, alias: prod.alias, duracion: dur, graduacion: v.graduacion, od: v.graduacion, oi: v.graduacion, cant: 1, precio });
+    if (kit && solV) agregar({ id: solucion.id, sku: solV.sku, nombre: solucion.nombre, graduacion: NEUTRO, od: NEUTRO, oi: NEUTRO, cant: 1, precio: solV.precio });
     onClose();
   };
   return (
     <Drawer open={!!p} onClose={onClose} title={f?.nombre} sheet
-      footer={<button className="btn full" disabled={!ok} onClick={add}>{ok ? <>Agregar a la bolsa · {mxn(precio + (kit ? 95 : 0))}</> : 'Sin existencia en esa graduación'}</button>}>
+      footer={<button className="btn full" disabled={!ok} onClick={add}>{ok ? <>Agregar a la bolsa · {mxn(precio + (kit && solV ? solV.precio : 0))}</> : 'Sin existencia en esa graduación'}</button>}>
       <div className="pd-top">
         <Iris p={prod} />
         <div>
           <div className="alias" style={{ font: 'italic 400 16px var(--display)', color: 'var(--mute)' }}>{prod.alias}</div>
           <h2 className="h-s" style={{ fontSize: 28, margin: '2px 0 6px' }}>{prod.nombre}</h2>
-          <div className="mono" style={{ fontSize: 15 }}>{mxn(prod.precio)} <span className="mute" style={{ fontSize: 13 }}>· graduado {mxn(prod.precioGraduado)}</span></div>
+          <div className="mono" style={{ fontSize: 15 }}>{mxn(precio)} <span className="mute" style={{ fontSize: 13 }}>· el par</span></div>
           <div className="meter">{[1, 2, 3].map((i) => <i key={i} className={i <= prod.intensidad ? 'on' : ''} />)}<span style={{ marginLeft: 6 }}>{INTENSIDAD[prod.intensidad]}</span></div>
         </div>
       </div>
       <p style={{ color: 'var(--ink-2)', marginBottom: 18 }}>{prod.desc}</p>
-      {prod.foto && <img src={A(prod.foto)} alt={`${prod.nombre} en ojos reales`} style={{ borderRadius: 12, marginBottom: 18, width: '100%', aspectRatio: '16/10', objectFit: 'cover' }} loading="lazy" />}
+      {prod.foto && <img src={A(prod.foto)} srcSet={srcsetDe(prod.foto, A)} sizes="(max-width: 700px) 100vw, 480px" alt={`${prod.nombre} en ojos reales`} style={{ borderRadius: 12, marginBottom: 18, width: '100%', aspectRatio: '16/10', objectFit: 'cover' }} loading="lazy" />}
+      {prod.duraciones.filter(Boolean).length > 1 && (<>
+        <div className="eyebrow" style={{ marginBottom: 10 }}>Duración</div>
+        <div className="seg" style={{ marginBottom: 18 }}>
+          {prod.duraciones.map((d) => <button key={d} className={dur === d ? 'on' : ''} onClick={() => setDur(d)}>{NOMBRE_DUR[d]}</button>)}
+        </div>
+      </>)}
       <div className="eyebrow" style={{ marginBottom: 10 }}>¿Usas graduación?</div>
       <div className="seg">
-        <button className={!grad ? 'on' : ''} onClick={() => setGrad(false)}>Sin graduación</button>
-        <button className={grad ? 'on' : ''} onClick={() => setGrad(true)}>Con graduación</button>
+        <button className={!usaGrad ? 'on' : ''} disabled={!hayNeutro} onClick={() => setConGrad(false)}>Sin graduación</button>
+        <button className={usaGrad ? 'on' : ''} disabled={!gradsDur.length} onClick={() => setConGrad(true)}>Con graduación</button>
       </div>
-      {grad ? (
+      {usaGrad ? (
         <>
-          <div className="eyes" style={{ marginTop: 14 }}>
-            <div className="eye-sel"><div className="lb"><span>OJO DERECHO</span><span>OD</span></div>
-              <select value={od} onChange={(e) => setOd(e.target.value)} aria-label="Graduación ojo derecho">{GRADS.slice(1).map((g) => <option key={g}>{g}</option>)}</select>
-              <Stock p={prod} g={od} /></div>
-            <div className="eye-sel" style={{ opacity: igual ? 0.5 : 1 }}><div className="lb"><span>OJO IZQUIERDO</span><span>OI</span></div>
-              <select value={igual ? od : oi} disabled={igual} onChange={(e) => setOi(e.target.value)} aria-label="Graduación ojo izquierdo">{GRADS.slice(1).map((g) => <option key={g}>{g}</option>)}</select>
-              <Stock p={prod} g={igual ? od : oi} /></div>
-          </div>
-          <label className="check"><input type="checkbox" checked={igual} onChange={(e) => { setIgual(e.target.checked); setOi(od); }} /> Misma graduación en ambos ojos</label>
-          <p className="note">Graduación para miopía de −0.50 a −8.00. Si cada ojo es distinto, apártala aquí: revisamos la existencia por ojo al momento.</p>
+          <div className="eye-sel" style={{ marginTop: 14 }}><div className="lb"><span>GRADUACIÓN (AMBOS OJOS)</span><span>{dur ? NOMBRE_DUR[dur] : ''}</span></div>
+            <select value={grad} onChange={(e) => setGrad(e.target.value)} aria-label="Graduación">{gradsDur.map((x) => <option key={x.graduacion} value={x.graduacion}>{x.graduacion}{x.disponible ? '' : ' · agotado'}</option>)}</select>
+            <Stock n={v?.disponible} /></div>
+          <p className="note">Se vende por par, con la misma graduación en ambos ojos. Si cada ojo es distinto, <a className="link" href={waLink(`Hola, me interesa ${prod.nombre} con graduación distinta en cada ojo`)} target="_blank" rel="noreferrer">escríbenos por WhatsApp</a>.</p>
         </>
-      ) : (<div style={{ marginTop: 10 }}><Stock p={prod} g="0.00" /></div>)}
-      <label className="check box" style={{ marginTop: 18 }}><input type="checkbox" checked={kit} onChange={(e) => setKit(e.target.checked)} /> <span style={{ flex: 1 }}>Agregar solución 120 ml <span className="mute">· recomendada si es tu primer par</span></span><b className="mono">+$95</b></label>
+      ) : (<div style={{ marginTop: 10 }}><Stock n={v?.disponible} /></div>)}
+      {solV && <label className="check box" style={{ marginTop: 18 }}><input type="checkbox" checked={kit} onChange={(e) => setKit(e.target.checked)} /> <span style={{ flex: 1 }}>Agregar {solucion.nombre.toLowerCase()} <span className="mute">· recomendada si es tu primer par</span></span><b className="mono">+{mxn(solV.precio)}</b></label>}
       <div style={{ display: 'flex', gap: 16, marginTop: 18, fontSize: 13.5, color: 'var(--mute)', flexWrap: 'wrap' }}>
-        <span>Duración: {prod.duracion}</span><span>Incluye estuche</span>
+        {prod.duracion && <span>Duración: {prod.duracion}</span>}<span>Incluye estuche</span>
         <TLink to={`/probador?tono=${prod.id}`} className="link" style={{ color: 'var(--ink)', display: 'inline-flex', gap: 6, alignItems: 'center' }} onClick={onClose}><Camera size={14} /> Verlo en el lookbook</TLink>
       </div>
     </Drawer>
@@ -287,7 +306,8 @@ export function ProductSheet({ p, onClose, grad0 }) {
 }
 
 export function Bag() {
-  const { bolsa, bolsaAbierta, abrirBolsa, cambiarCant, quitar, productos } = useStore();
+  const { bolsa, bolsaAbierta, abrirBolsa, cambiarCant, quitar } = useStore();
+  const productos = useProductos();
   const nav = useGo();
   const sub = bolsa.reduce((a, b) => a + b.precio * b.cant, 0);
   return (
@@ -302,7 +322,7 @@ export function Bag() {
             {p?.tipo === 'lente' ? <Iris p={p} /> : <div className="iris" style={{ background: 'var(--sand)', width: 64 }} />}
             <div>
               <b style={{ fontWeight: 500 }}>{b.nombre}</b>
-              {p?.tipo === 'lente' && <div className="mono mute" style={{ fontSize: 12.5 }}>{b.od === '0.00' && b.oi === '0.00' ? 'Sin graduación' : `OD ${b.od} · OI ${b.oi}`}</div>}
+              {p?.tipo === 'lente' && <div className="mono mute" style={{ fontSize: 12.5 }}>{(b.graduacion ?? b.od) === NEUTRO ? 'Sin graduación' : `Graduación ${b.graduacion ?? b.od}`}{b.duracion ? ` · ${NOMBRE_DUR[b.duracion]}` : ''}</div>}
               <div className="qty"><button onClick={() => cambiarCant(i, -1)} aria-label="Menos"><Minus size={14} /></button><span>{b.cant}</span><button onClick={() => cambiarCant(i, 1)} aria-label="Más"><Plus size={14} /></button></div>
             </div>
             <div style={{ textAlign: 'right' }}><div className="mono">{mxn(b.precio * b.cant)}</div><button className="mute" style={{ fontSize: 12.5, marginTop: 8 }} onClick={() => quitar(i)}>Quitar</button></div>

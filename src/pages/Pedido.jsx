@@ -4,6 +4,7 @@ import gsap from 'gsap';
 import { MessageCircle } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { ESTADOS, PASOS, mxn, waLink } from '../lib/catalog';
+import { useProductos } from '../lib/tienda';
 import { Iris } from '../ui';
 
 export default function Pedido() {
@@ -11,7 +12,7 @@ export default function Pedido() {
   const [qs] = useSearchParams();
   const nav = useNavigate();
   const p = useStore((s) => s.pedidos.find((x) => x.folio === folio));
-  const productos = useStore((s) => s.productos);
+  const productos = useProductos();
   const [q, setQ] = useState('');
   const ref = useRef();
   const nuevo = qs.get('nuevo');

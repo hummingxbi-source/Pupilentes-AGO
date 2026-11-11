@@ -73,11 +73,11 @@ export const useStore = create(
       abrirBolsa: (v = true) => set({ bolsaAbierta: v }),
       agregar: (item) => {
         const bolsa = [...get().bolsa];
-        const k = bolsa.findIndex((b) => b.id === item.id && b.od === item.od && b.oi === item.oi);
+        const k = bolsa.findIndex((b) => (item.sku ? b.sku === item.sku : b.id === item.id && b.od === item.od && b.oi === item.oi));
         if (k >= 0) bolsa[k] = { ...bolsa[k], cant: bolsa[k].cant + item.cant }; else bolsa.push(item);
         set({ bolsa, bolsaAbierta: true });
       },
-      cambiarCant: (i, d) => set({ bolsa: get().bolsa.map((b, j) => (j === i ? { ...b, cant: Math.max(1, b.cant + d) } : b)) }),
+      cambiarCant: (i, d) => set({ bolsa: get().bolsa.map((b, j) => (j === i ? { ...b, cant: Math.min(10, Math.max(1, b.cant + d)) } : b)) }),
       quitar: (i) => set({ bolsa: get().bolsa.filter((_, j) => j !== i) }),
       vaciar: () => set({ bolsa: [] }),
 
@@ -105,7 +105,7 @@ export const useStore = create(
       nuevoProducto: (p) => set({ productos: [...get().productos, p] }),
       reiniciarDemo: () => set({ productos: crearProductos(), pedidos: mockPedidos(crearProductos()), bolsa: [], clientes: clientes0(), sesion: null }),
     }),
-    { name: 'ago-v4', version: 3, migrate: () => ({}), partialize: (s) => ({ productos: s.productos, pedidos: s.pedidos, bolsa: s.bolsa, clientes: s.clientes, sesion: s.sesion }) }
+    { name: 'ago-v4', version: 4, migrate: () => ({}), partialize: (s) => ({ productos: s.productos, pedidos: s.pedidos, bolsa: s.bolsa, clientes: s.clientes, sesion: s.sesion }) }
   )
 );
 

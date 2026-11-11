@@ -4,8 +4,8 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
 import { ArrowRight, ArrowUpRight, Train, Car, Package, Check, Truck } from 'lucide-react';
 import { Iris, LOGO, ProductSheet, TLink, onReady } from '../ui';
-import { useStore } from '../lib/store';
 import { A, FAMILIAS, mxn } from '../lib/catalog';
+import { useProductos } from '../lib/tienda';
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -29,7 +29,7 @@ const PASOS = [
 
 export default function Landing() {
   const root = useRef();
-  const productos = useStore((s) => s.productos);
+  const productos = useProductos();
   const [sheet, setSheet] = useState(null);
   const [hi, setHi] = useState(0);
   useEffect(() => { const t = setInterval(() => setHi((i) => (i + 1) % 4), 2800); return () => clearInterval(t); }, []);

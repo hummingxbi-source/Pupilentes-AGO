@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:db": "supabase test db",
-    "audit:ci": "npm audit --omit=dev --audit-level=high"
+    "audit:ci": "npm audit --omit=dev --audit-level=high",
+    "semilla": "node scripts/generar-semilla.mjs",
+    "importar": "node scripts/importar-catalogo.mjs",
+    "test:concurrencia": "node tests/integracion/stock-concurrencia.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.1",
@@ -30,9 +33,12 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@vitejs/plugin-react": "^5.2.0",
+    "aws4fetch": "^1.0.20",
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.14.0",
+    "pg": "^8.23.1",
+    "sharp": "^0.34.5",
     "vite": "^7.3.8",
     "vitest": "^5.1.0"
   },

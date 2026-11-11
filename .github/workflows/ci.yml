@@ -77,6 +77,17 @@ jobs:
         run: supabase db reset --local
       - name: pgTAP
         run: supabase test db
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - name: Reimportar la semilla no duplica nada (importador contra la BD real)
+        run: |
+          antes=$(psql "postgresql://postgres:postgres@127.0.0.1:55322/postgres" -Atc "select sum(stock) || '/' || count(*) from public.variantes")
+          node scripts/importar-catalogo.mjs plantillas/catalogo-semilla.csv --aplicar
+          despues=$(psql "postgresql://postgres:postgres@127.0.0.1:55322/postgres" -Atc "select sum(stock) || '/' || count(*) from public.variantes")
+          echo "antes=$antes despues=$despues"; test "$antes" = "$despues"
+      - name: Concurrencia real (última pieza en paralelo)
+        run: npm run test:concurrencia
 
   # integracion: se activa en la Fase 3 (supabase functions serve + tests/integracion y tests/seguridad).
   # e2e: se activa en la Fase 8 (Playwright, solo en PR a main).
