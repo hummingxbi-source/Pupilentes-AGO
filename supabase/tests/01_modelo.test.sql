@@ -20,7 +20,7 @@ select lives_ok('select * from public.catalogo_publico', 'anon lee catalogo_publ
 reset role;
 
 set local role authenticated;
-select throws_ok('select * from public.pedidos', '42501', null, 'authenticated no lee pedidos (sin políticas hasta su fase)');
+select is((select count(*)::int from public.pedidos), 0, 'authenticated sin rol de panel: 0 pedidos (RLS)');
 select throws_ok($$update public.variantes set stock = 999$$, '42501', null, 'authenticated no puede hacer UPDATE de stock');
 select throws_ok($$insert into public.movimientos_stock (variante_id, delta, motivo, ref_externa) values (gen_random_uuid(), 5, 'ajuste', 'x')$$,
   '42501', null, 'authenticated no escribe en la bitácora');

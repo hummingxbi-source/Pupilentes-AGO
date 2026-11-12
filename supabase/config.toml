@@ -432,3 +432,9 @@ verify_jwt = false
 
 [functions.cron-conciliar]
 verify_jwt = false
+
+# Fase 2 · funciones del panel: las llama el navegador con la sesión de la dueña/ayudante.
+# verify_jwt por defecto (true) + exigirPanel() en el código (rol + MFA).
+[functions.panel-stock]
+[functions.panel-catalogo]
+[functions.r2-firmar]

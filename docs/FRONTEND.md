@@ -25,7 +25,7 @@ No se reescribe el frontend desde cero. El camino es **conservar los componentes
 | Fase | Pantallas que se conectan |
 |---|---|
 | 1 ✅ | `Landing`, `Tienda`, ficha de producto, `Tono`, `Probador`, bolsa (catálogo desde la BD). El panel sigue con datos de la demo hasta la Fase 2 |
-| 2 | `/panel`: Inventario, Catálogo, Hoy, Pedidos, Clientas |
+| 2 ✅ | `/panel`: acceso con MFA (`Acceso.jsx`, `sesion.js`), Inventario, Catálogo, Hoy, Pedidos (solo lectura), Clientas (`datos.js`) |
 | 3 | `Checkout`, `Pedido` (pagos y rastreo reales) |
 | 4 | `Checkout` (cotizador Envia.com), panel → generar guía |
 | 5–6 | Panel → vincular publicaciones de ML y TikTok |

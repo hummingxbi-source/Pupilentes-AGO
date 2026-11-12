@@ -1,4 +1,5 @@
-// Núcleo del importador de catálogo (Fase 1). Funciones puras: filas → plan validado.
+// Núcleo del importador de catálogo. Funciones puras: filas → plan validado.
+// Lo usan la terminal (scripts/importar-catalogo.mjs), el panel (Edge Function panel-catalogo) y las pruebas.
 // El formato de la plantilla está documentado en plantillas/LEEME.md.
 
 export const COLUMNAS = [
@@ -180,4 +181,16 @@ export function resumen(plan) {
   return `${plan.marcas.length} marcas · ${plan.productos.length} productos · ${plan.tonos.length} tonos · ` +
     `${plan.variantes.length} variantes (${lentes.length} de lentes) · ${plan.imagenes.length} fotos · ` +
     `${plan.variantes.reduce((a, v) => a + v.stock, 0)} pares de stock inicial`;
+}
+
+/** Plan → lo que recibe public.aplicar_catalogo (sin `origen` de fotos). Exige que cada foto tenga URL publicada. */
+export function planParaBd(plan) {
+  for (const i of plan.imagenes) if (!i.url) throw new Error(`la foto "${i.origen}" no tiene URL publicada`);
+  return {
+    marcas: plan.marcas,
+    productos: plan.productos,
+    tonos: plan.tonos,
+    variantes: plan.variantes,
+    imagenes: plan.imagenes.map(({ producto, tono, url, alt, orden }) => ({ producto, tono, url, alt, orden })),
+  };
 }

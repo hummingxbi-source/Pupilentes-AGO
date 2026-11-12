@@ -4,7 +4,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ExcelJS from 'exceljs';
-import { COLUMNAS } from './catalogo/plan.mjs';
+import { COLUMNAS } from '../supabase/functions/_shared/catalogo/plan.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SALIDA = path.join(RAIZ, 'plantillas', 'catalogo.xlsx');
@@ -65,4 +65,8 @@ a.addRow(['', 'Un mismo tono puede ocupar varias filas: una por duración o por 
 a.addRow(['', 'Las filas de ejemplo se pueden borrar. No cambies los nombres de las columnas.']);
 
 await wb.xlsx.writeFile(SALIDA);
-console.log(`✓ ${path.relative(RAIZ, SALIDA)}`);
+// Copia pública: el panel la ofrece para descargar (Catálogo → Plantilla)
+const PUBLICA = path.join(RAIZ, 'public', 'plantillas', 'catalogo.xlsx');
+await (await import('node:fs/promises')).mkdir(path.dirname(PUBLICA), { recursive: true });
+await wb.xlsx.writeFile(PUBLICA);
+console.log(`✓ ${path.relative(RAIZ, SALIDA)} y ${path.relative(RAIZ, PUBLICA)}`);

@@ -2,7 +2,7 @@
 
 > Documento vivo. Es la guía para que cualquier persona del equipo (con Claude) desarrolle el proyecto real, fase por fase.
 > **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
-> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 11 nov 2026 (v2.2) · **Estado: Fase 0 cerrada (PR #3). Fase 1 — código terminado** (rama `fase/1-catalogo`), pendiente de verificar en una Mac con Docker. Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
+> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 11 nov 2026 (v2.3) · **Estado: Fases 0 y 1 cerradas (PR #3 y #9). Fase 2 — código terminado** (rama `fase/2-panel`), pendiente de verificar en una Mac con Docker. Pendiente del equipo: repo a privado y decisión D4. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
 >
 > Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
 
@@ -386,14 +386,14 @@ Reglas del flujo:
 **Terminado cuando:** la tienda funciona completa con el catálogo semilla, el importador carga la plantilla sin errores y el CI está en verde.
 
 ### Fase 2 · Panel seguro e inventario
-- [ ] Login de panel (Supabase Auth, correo + contraseña) con **MFA (TOTP)**; roles `duena`/`ayudante` en `perfiles_panel`. Las cuentas de panel las crea el equipo; no hay registro abierto al panel.
-- [ ] **MFA forzado en la BD y en las funciones**, no solo en la pantalla: políticas RLS restrictivas que exigen `aal2` en las tablas del panel [26], y `auth.ts` rechaza sesiones de panel sin `aal2`.
-- [ ] Segunda cuenta de administración con MFA para recuperación (si la dueña pierde su teléfono) (⚠️ D4).
-- [ ] Inventario: ajustes con motivo (Edge Function `panel-stock` → `mover_stock`), historial por variante, alertas de stock bajo.
-- [ ] Importar/exportar Excel contra la BD con vista previa antes de aplicar.
-- [ ] Catálogo: alta y edición de productos, variantes e imágenes (subida a R2 según §2.4, compresión a WebP).
-- [ ] `auditoria_panel` registrando cambios de precio y ajustes.
-- [ ] Vistas Hoy, Pedidos y Clientas conectadas a la BD. Cierre de sesión por inactividad.
+- [x] Login de panel (Supabase Auth, correo + contraseña) con **MFA (TOTP)**; roles `duena`/`ayudante` en `perfiles_panel`. Las cuentas de panel las crea el equipo; no hay registro abierto al panel. *(`scripts/cuentas-panel.mjs crear | rol | quitar | reiniciar-mfa | lista`.)*
+- [x] **MFA forzado en la BD y en las funciones**, no solo en la pantalla: políticas RLS restrictivas que exigen `aal2` en las tablas del panel [26], y `auth.ts` rechaza sesiones de panel sin `aal2`. *(La política restrictiva aplica a usuarios del panel; las clientas de la Fase 7 no quedan bloqueadas por ella.)*
+- [ ] Segunda cuenta de administración con MFA para recuperación (si la dueña pierde su teléfono) (⚠️ D4). *(Herramienta lista: `cuentas-panel.mjs crear` y `reiniciar-mfa`, auditadas. Falta decidir D4: a nombre de quién.)*
+- [x] Inventario: ajustes con motivo (Edge Function `panel-stock` → `mover_stock`), historial por variante, alertas de stock bajo. *(`panel_ajustar_stock`: todo o nada, no baja de lo apartado y detecta si el stock cambió desde la vista previa.)*
+- [x] Importar/exportar Excel contra la BD con vista previa antes de aplicar.
+- [x] Catálogo: alta y edición de productos, variantes e imágenes (subida a R2 según §2.4, compresión a WebP). *(Alta con la misma plantilla y la misma función SQL `aplicar_catalogo` que la terminal. Fotos: `r2-firmar` + verificación probadas con R2 simulado; se activan al crear el bucket.)*
+- [x] `auditoria_panel` registrando cambios de precio y ajustes. *(Trigger en marcas, productos, tonos, variantes e imágenes + ajustes, importaciones y cambios de cuentas.)*
+- [x] Vistas Hoy, Pedidos y Clientas conectadas a la BD. Cierre de sesión por inactividad. *(30 min. Las acciones sobre pedidos llegan en las Fases 3 y 4.)*
 
 **Probar a mano:** entrar con MFA, ajustar stock, importar un Excel con errores (avisa sin aplicar), subir una foto.
 **Automáticas:** sin sesión → 401; sesión con contraseña pero sin MFA → sin datos y 403; `ayudante` intentando borrar o ajustar stock → 403; una clienta con sesión (OTP) no lee ni una fila del panel; Excel malformado no toca la BD; subir un archivo que no es imagen → se rechaza y se borra.
@@ -512,7 +512,7 @@ Reglas del flujo:
 | `pedidos-crear`, `envios-cotizar` | Público | Turnstile + límite + zod |
 | `pedidos-rastrear` | Público | Token, o folio + 4 dígitos + Turnstile + límite por folio |
 | `comprobantes-subir` | Público con token del pedido | Token + Turnstile + límite + tipo y tamaño |
-| `panel-stock`, `pagos-reembolsar`, `panel-transferencias` | `duena` | Sesión válida + `aal2` + rol |
+| `panel-stock`, `panel-catalogo`, `pagos-reembolsar`, `panel-transferencias` | `duena` | Sesión válida + `aal2` + rol |
 | `envios-guia`, `r2-firmar` | `duena` o `ayudante` | Sesión válida + `aal2` + rol |
 | `webhook-*` | El proveedor | Firma o secreto + idempotencia + consulta al proveedor |
 | `cron-conciliar` | Supabase Cron | Secreto de Vault en la cabecera |
@@ -645,6 +645,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | 8 nov 2026 | **Backend en Supabase** (Edge Functions + Cron) en lugar de Cloudflare Functions; Cloudflare solo para frontend y R2. **Ramas:** `main` = demo congelada hasta el lanzamiento, `develop` = proyecto nuevo. La demo pasa a Cloudflare y se borra Vercel en la Fase 0. |
 | 8 nov 2026 | **Ramas finales:** `demo` (+ tag `demo-v1`) guarda la demo congelada; `main` = proyecto real; `fase/*` → PR a `main`. Vercel solo se **desconecta** (el link de la clienta sigue mostrando la demo). Se trabaja en local. Nuevos: `README.md` (cómo empezar) y `docs/FRONTEND.md` (la demo es punto de partida, no diseño cerrado). |
 | 10 nov 2026 | **v2 · Revisión de seguridad y pagos.** Detalle abajo. |
+| 11 nov 2026 | **v2.3 · Fase 2 (código).** Rama `fase/2-panel`: login con MFA (TOTP) y roles; MFA forzado en la BD (política restrictiva aal2 en 16 tablas) y en las funciones; permisos de escritura por columna solo para la dueña (`stock` nunca); auditoría por trigger; `panel-stock` (ajuste y Excel con vista previa, todo o nada), `panel-catalogo` y `r2-firmar`; cuentas por script (`cuentas-panel.mjs`). **Una sola implementación del guardado de catálogo:** `aplicar_catalogo` (SQL) la usan terminal, panel y semilla. Verificado con un mini-Supabase (GoTrue + PostgREST + funciones) y Playwright con códigos TOTP reales: 37/37. Hallazgo: aws4fetch no firma `Content-Type` por defecto; se activó `allHeaders`. |
 | 11 nov 2026 | **v2.2 · Fase 1 (código).** Rama `fase/1-catalogo`: modelo completo de §3.2 con RLS, vista `catalogo_publico`, 4 funciones de stock + `liberar_reservas_vencidas`, 47 pruebas pgTAP nuevas, prueba de concurrencia real, importador (Excel/CSV + fotos WebP → SQL idempotente), plantilla y semilla, y la tienda leyendo de la BD con caché. Cambios respecto al plan: **tabla `tonos`** (ver §3.2); `stock` protegido quitando todo permiso de tabla en lugar de permisos por columna; la ficha deja de permitir graduación distinta por ojo (se vende por par; si cada ojo es distinto, WhatsApp). |
 | 11 nov 2026 | **v2.1 · Fase 0 (código).** Rama `fase/0-cimientos`: chatbot fuera del build, sin `api/`, `BrowserRouter`, dependencias sin vulnerabilidades, `_headers`, Supabase local (config, 2 migraciones, pgTAP), `_shared`, `salud`, `cron-conciliar`, CI, Dependabot y respaldo. Cambios respecto al plan: **`xlsx` → ExcelJS** (la versión corregida de `xlsx` solo existe en la CDN de SheetJS, que no se puede instalar desde npm ni revisar con `npm audit`); el `REVOKE EXECUTE` a `PUBLIC` se hace **sin `IN SCHEMA`**, porque por esquema no se puede quitar un privilegio global (lo detectó la prueba pgTAP); el cron usa un **secreto propio** (`x-cron-secret`) en lugar de la llave secreta del proyecto. |
 

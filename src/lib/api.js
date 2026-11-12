@@ -3,7 +3,7 @@
 import { supabase, SUPABASE_URL, SUPABASE_KEY, supabaseConfigurado } from './supabase';
 
 export class ErrorApi extends Error {
-  constructor(estado, codigo, mensaje) { super(mensaje || codigo); this.estado = estado; this.codigo = codigo; }
+  constructor(estado, codigo, mensaje, datos = {}) { super(mensaje || codigo); this.estado = estado; this.codigo = codigo; this.datos = datos; }
 }
 
 /** Llama a /functions/v1/<nombre>. Si hay sesión, manda su token; si no, solo la llave publicable. */
@@ -18,7 +18,7 @@ export async function llamarFuncion(nombre, { metodo = 'POST', cuerpo, señal } 
     method: metodo, headers: encabezados, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo), signal: señal,
   });
   const datos = await r.json().catch(() => ({}));
-  if (!r.ok) throw new ErrorApi(r.status, datos.error || 'error', datos.mensaje);
+  if (!r.ok) throw new ErrorApi(r.status, datos.error || 'error', datos.mensaje, datos);
   return datos;
 }
 

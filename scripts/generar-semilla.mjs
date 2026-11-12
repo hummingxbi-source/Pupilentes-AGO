@@ -8,7 +8,7 @@ import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { leerArchivo } from './catalogo/leer.mjs';
-import { construirPlan, resumen } from './catalogo/plan.mjs';
+import { construirPlan, resumen } from '../supabase/functions/_shared/catalogo/plan.js';
 import { generarSql } from './catalogo/sql.mjs';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
