@@ -9,7 +9,7 @@ import { useStore } from '../lib/store';
 import { LOGO, Iris } from '../ui';
 import Acceso from './Acceso';
 import { useSesion, iniciarSesionPanel } from './sesion';
-import { useConsulta, cargarPedidos, cargarVariantes, agrupar, ESTADOS_PEDIDO } from './datos';
+import { useConsulta, cargarPedidos, cargarVariantes, cargarAlertas, atenderAlerta, accionPedido, agrupar, ALERTAS, ESTADOS_PEDIDO } from './datos';
 import { Inventario, Catalogo, Clientas } from './Gestion';
 
 export const waTo = (tel, txt) => `https://wa.me/52${String(tel).replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(txt)}`;
@@ -68,6 +68,7 @@ export function Estado({ cargando, error, recargar }) {
 function Hoy() {
   const ped = useConsulta(cargarPedidos);
   const inv = useConsulta(cargarVariantes);
+  const al = useConsulta(cargarAlertas);
   const nav = useNavigate();
   const [abierto, setAbierto] = useState(null);
   const ref = useEntrada([ped.cargando, inv.cargando]);
@@ -110,11 +111,18 @@ function Hoy() {
         ))}
       </div>
       <Estado {...ped} />
+      {(al.datos || []).length > 0 && <section className="panel-card pn-alertas" data-in aria-label="Alertas">
+        <h3>Requiere tu atención <small>{al.datos.length}</small></h3>
+        {al.datos.map((a) => { const p = pedidos.find((x) => x.id === a.pedido_id); return (
+          <div className="task" key={a.id}><span className="ic">!</span><div><b>{ALERTAS[a.tipo] || a.tipo}</b><small>{a.detalle?.folio || p?.folio || ''} · {new Date(a.creado_en).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</small></div>
+            <span style={{ display: 'flex', gap: 6 }}>{p && <button className="btn sm ghost" onClick={() => setAbierto(p)}>Ver pedido</button>}
+              {a.tipo !== 'cron_sin_correr' && <button className="btn sm ghost" onClick={async () => { try { await atenderAlerta(a.id); al.recargar(); } catch (e) { useStore.getState().notificar(e.message); } }}>Ya la atendí</button>}</span></div>); })}
+      </section>}
       <div className="pn-cols">
         <div>
           <section className="panel-card" data-in>
             <h3>Pedidos recientes <small>los más nuevos</small></h3>
-            {!ped.cargando && !pedidos.length && <p className="mute">Aún no hay pedidos. La compra en línea se activa en la Fase 3.</p>}
+            {!ped.cargando && !pedidos.length && <p className="mute">Aún no hay pedidos.</p>}
             {pedidos.slice(0, 6).map((p) => (
               <div className="task" key={p.id}><span className="ic mono" style={{ fontSize: 11 }}>{p.folio.slice(-4)}</span><div><b>{nombreDe(p)}</b><small>{ESTADOS_PEDIDO[p.estado]?.label} · {mxn(p.total)} · {p.canal}</small></div><button className="btn sm ghost" onClick={() => setAbierto(p)}>Ver</button></div>
             ))}
@@ -145,7 +153,7 @@ function Hoy() {
           </section>
         </div>
       </div>
-      {abierto && <OrderModal p={abierto} onClose={() => setAbierto(null)} />}
+      {abierto && <OrderModal p={abierto} onClose={() => setAbierto(null)} onCambio={() => { ped.recargar(); al.recargar(); }} />}
     </div>
   );
 }
@@ -175,26 +183,69 @@ function Pedidos() {
           <div><div className="who">{nombreDe(p)}</div><div className="sub"><span className="mono">{p.folio}</span><span>{new Date(p.creado_en).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span><span>{p.canal}</span></div></div>
           <div style={{ textAlign: 'right' }}><span className={'pill-st ' + (ESTADOS_PEDIDO[p.estado]?.clase || '')}>{ESTADOS_PEDIDO[p.estado]?.label || p.estado}</span><div className="mono" style={{ marginTop: 8 }}>{mxn(p.total)}</div></div>
         </button>))}
-        {!ped.cargando && !lista.length && <p className="empty">{pedidos.length ? 'No hay pedidos aquí.' : 'Aún no hay pedidos. La compra en línea se activa en la Fase 3.'}</p>}
+        {!ped.cargando && !lista.length && <p className="empty">{pedidos.length ? 'No hay pedidos aquí.' : 'Aún no hay pedidos.'}</p>}
       </div>
-      {abierto && <OrderModal p={abierto} onClose={() => setAbierto(null)} />}
+      {abierto && <OrderModal p={abierto} onClose={() => setAbierto(null)} onCambio={ped.recargar} />}
     </div>
   );
 }
 
-/* ---------- Detalle de pedido (solo lectura; las acciones llegan en las Fases 3 y 4) ---------- */
-export function OrderModal({ p, onClose }) {
+/* ---------- Detalle de pedido y acciones (Fase 3; las guías llegan en la Fase 4) ---------- */
+const ESTADO_MP = { approved: 'Aprobado', pending: 'Pendiente', in_process: 'En revisión', rejected: 'Rechazado', cancelled: 'Cancelado', refunded: 'Reembolsado', charged_back: 'Contracargo' };
+const mensajeWa = (p) => {
+  const n = nombreDe(p).split(' ')[0];
+  const cita = p.entrega?.cita ? ` (${p.entrega.cita})` : '';
+  switch (p.estado) {
+    case 'pendiente_pago': return p.metodo_pago === 'transferencia'
+      ? `Hola ${n}, te escribimos de Pupilentes AGO. Tu pedido ${p.folio} por ${mxn(p.total)} está apartado. ¿Pudiste hacer la transferencia?`
+      : `Hola ${n}, te escribimos de Pupilentes AGO. Vimos que tu pago del pedido ${p.folio} quedó pendiente. ¿Te ayudamos?`;
+    case 'pendiente_validacion': return `Hola ${n}, recibimos tu aviso de pago del pedido ${p.folio}. En un momento lo validamos.`;
+    case 'pagado': return `Hola ${n}, ¡tu pago del pedido ${p.folio} quedó confirmado! ${p.entrega?.tipo?.startsWith('metro') ? `Te confirmamos la entrega${cita}.` : 'Te avisamos cuando salga.'}`;
+    case 'preparando': return `Hola ${n}, ya estamos preparando tu pedido ${p.folio}${cita}.`;
+    case 'enviado': return `Hola ${n}, tu pedido ${p.folio} ya va en camino.`;
+    case 'pagado_sin_stock': return `Hola ${n}, una disculpa: mientras se acreditaba tu pago del pedido ${p.folio} se agotó una pieza. ¿Prefieres que te devolvamos tu dinero o cambiarlo por otro tono?`;
+    default: return `Hola ${n}, te escribimos de Pupilentes AGO por tu pedido ${p.folio}.`;
+  }
+};
+
+export function OrderModal({ p, onClose, onCambio }) {
   const box = useRef();
+  const rol = useSesion((s) => s.rol);
+  const [ocupado, setOcupado] = useState('');
+  const [error, setError] = useState('');
+  const [nota, setNota] = useState('');
+  const [confirmar, setConfirmar] = useState(null);   // acción destructiva esperando confirmación
   useGSAP(() => { gsap.fromTo(box.current, { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: 'expo.out' }); }, { scope: box });
   const tel = p.contacto?.telefono;
+  const duena = rol === 'duena';
+  const transf = (p.pagos || []).find((x) => x.proveedor === 'transferencia');
+  const mp = (p.pagos || []).filter((x) => x.proveedor === 'mercadopago').sort((a, b) => b.creado_en.localeCompare(a.creado_en))[0];
+
+  const hacer = async (cuerpo, etiqueta) => {
+    setOcupado(etiqueta); setError(''); setConfirmar(null);
+    try {
+      const r = await accionPedido({ pedido: p.id, ...cuerpo, ...(nota.trim() && cuerpo.accion !== 'comprobante' ? { nota: nota.trim() } : {}) });
+      if (cuerpo.accion === 'comprobante') { window.open(r.url, '_blank', 'noopener'); return; }
+      useStore.getState().notificar(r.manual ? 'Registrado. Devuelve la transferencia desde tu banco.' : 'Listo');
+      onCambio?.(); onClose();
+    } catch (e) { setError(e.message); }
+    finally { setOcupado(''); }
+  };
+  const B = ({ cuerpo, etiqueta, clase = 'btn sm', peligro }) => (
+    <button className={clase} disabled={!!ocupado} onClick={() => (peligro ? setConfirmar({ cuerpo, etiqueta }) : hacer(cuerpo, etiqueta))}>{ocupado === etiqueta ? 'Un momento…' : etiqueta}</button>
+  );
+  const e = p.estado;
+  const pagado = ['pagado', 'pagado_sin_stock', 'preparando', 'enviado', 'entregado'].includes(e);
+
   return (
-    <div className="modal" role="dialog" aria-modal="true">
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="om-t">
       <div className="scrim" onClick={onClose} />
       <div className="mbox" ref={box}>
         <button className="icon-btn" style={{ position: 'absolute', right: 12, top: 12 }} onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
-        <p className="eyebrow">{p.folio} · {p.canal}</p>
-        <h2 className="h-s" style={{ fontSize: 26, margin: '6px 0 4px' }}>{nombreDe(p)}</h2>
-        <span className={'pill-st ' + (ESTADOS_PEDIDO[p.estado]?.clase || '')}>{ESTADOS_PEDIDO[p.estado]?.label || p.estado}</span>
+        <p className="eyebrow">{p.folio} · {p.canal} · {p.metodo_pago === 'transferencia' ? 'Transferencia' : p.metodo_pago === 'mercadopago' ? 'Mercado Pago' : '—'}</p>
+        <h2 id="om-t" className="h-s" style={{ fontSize: 26, margin: '6px 0 4px' }}>{nombreDe(p)}</h2>
+        <span className={'pill-st ' + (ESTADOS_PEDIDO[e]?.clase || '')}>{ESTADOS_PEDIDO[e]?.label || e}</span>
+        {p.no_entregar && <p className="err" role="alert" style={{ fontWeight: 500 }}>No entregar: contracargo o alerta de fraude.</p>}
         <div className="order-b" style={{ padding: 0, border: 0 }}>
           <div className="lines">
             {(p.pedido_items || []).map((i, k) => (
@@ -203,8 +254,34 @@ export function OrderModal({ p, onClose }) {
             <div className="sum" style={{ fontSize: 14 }}><span>Envío</span><span className="mono">{Number(p.envio) ? mxn(p.envio) : 'Gratis'}</span></div>
             <div className="sum t"><span>Total</span><span className="mono">{mxn(p.total)}</span></div>
           </div>
-          {tel && <a className="btn ghost" href={waTo(tel, `Hola ${nombreDe(p).split(' ')[0]}, te escribimos de Pupilentes AGO por tu pedido ${p.folio}.`)} target="_blank" rel="noreferrer">Escribir por WhatsApp</a>}
-          <p className="mute" style={{ fontSize: 12.5, marginTop: 12 }}>Validar pagos y generar guías se activan en las Fases 3 y 4.</p>
+          <dl className="om-datos">
+            <dt>Entrega</dt><dd>{p.entrega?.cita || p.entrega?.zona || '—'}{p.entrega?.tipo === 'didi' ? ` · DiDi ${p.entrega.zona}` : ''}{p.entrega?.tipo === 'paqueteria' ? ` · Paquetería ${p.entrega.zona}` : ''}</dd>
+            {p.entrega?.direccion && <><dt>Dirección</dt><dd>{p.entrega.direccion}{p.entrega.referencias ? ` · ${p.entrega.referencias}` : ''}</dd></>}
+            {tel && <><dt>WhatsApp</dt><dd className="mono">{tel}</dd></>}
+            {p.contacto?.correo && <><dt>Correo</dt><dd>{p.contacto.correo}</dd></>}
+            {mp && <><dt>Mercado Pago</dt><dd>{ESTADO_MP[mp.estado] || mp.estado} · <span className="mono">#{mp.id_externo}</span></dd></>}
+            {e === 'pendiente_pago' && p.expira_reserva_en && <><dt>Apartado hasta</dt><dd>{new Date(p.expira_reserva_en).toLocaleString('es-MX', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</dd></>}
+          </dl>
+
+          <div className="om-acciones">
+            {p.metodo_pago === 'transferencia' && ['pendiente_pago', 'pendiente_validacion'].includes(e) && duena && (<>
+              <B cuerpo={{ accion: 'validar_transferencia', aprobar: true }} etiqueta="Aprobar pago" clase="btn sm gold" />
+              <B cuerpo={{ accion: 'validar_transferencia', aprobar: false }} etiqueta="Rechazar pago" clase="btn sm ghost" peligro />
+            </>)}
+            {transf?.comprobante_clave && <B cuerpo={{ accion: 'comprobante' }} etiqueta="Ver comprobante" clase="btn sm ghost" />}
+            {e === 'pagado' && <B cuerpo={{ accion: 'estado', nuevo: 'preparando' }} etiqueta="Marcar preparando" />}
+            {['pagado', 'preparando'].includes(e) && !p.no_entregar && <B cuerpo={{ accion: 'estado', nuevo: 'entregado' }} etiqueta="Marcar entregado" clase="btn sm ghost" />}
+            {e === 'enviado' && <B cuerpo={{ accion: 'estado', nuevo: 'entregado' }} etiqueta="Marcar entregado" />}
+            {['pendiente_pago', 'pendiente_validacion'].includes(e) && duena && <B cuerpo={{ accion: 'cancelar' }} etiqueta="Cancelar pedido" clase="btn sm ghost" peligro />}
+            {pagado && duena && <B cuerpo={{ accion: 'reembolsar' }} etiqueta={p.metodo_pago === 'mercadopago' ? 'Reembolsar en Mercado Pago' : 'Registrar devolución'} clase="btn sm ghost" peligro />}
+          </div>
+          {(duena || e === 'pagado' || e === 'preparando') && <div className="field" style={{ marginTop: 10 }}><label htmlFor="om-nota">Nota (opcional, queda en la bitácora)</label><input id="om-nota" className="inp" maxLength={300} value={nota} onChange={(ev) => setNota(ev.target.value)} /></div>}
+          {confirmar && <div className="om-confirma" role="alertdialog" aria-label="Confirmar">
+            <p>¿Seguro que quieres <b>{confirmar.etiqueta.toLowerCase()}</b>? {confirmar.cuerpo.accion === 'reembolsar' && p.metodo_pago === 'mercadopago' ? `Se devuelven ${mxn(p.total)} a la clienta.` : ''}</p>
+            <div style={{ display: 'flex', gap: 8 }}><button className="btn sm" onClick={() => hacer(confirmar.cuerpo, confirmar.etiqueta)}>Sí, {confirmar.etiqueta.toLowerCase()}</button><button className="btn sm ghost" onClick={() => setConfirmar(null)}>No</button></div>
+          </div>}
+          {error && <p className="err" role="alert">{error}</p>}
+          {tel && <a className="btn ghost" style={{ marginTop: 14 }} href={waTo(tel, mensajeWa(p))} target="_blank" rel="noreferrer">Escribir por WhatsApp</a>}
         </div>
       </div>
     </div>

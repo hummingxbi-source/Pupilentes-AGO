@@ -91,7 +91,8 @@ createServer(async (req, res) => {
     let m = /^\/simular\/pagos\/(\d+)$/.exec(url.pathname);
     if (req.method === 'POST' && m) {
       const pago = pagos.get(m[1]); if (!pago) return enviar(res, 404, { message: 'not found' });
-      Object.assign(pago, { status: (await leer(req)).status ?? 'approved' });
+      const status = (await leer(req)).status ?? 'approved';
+      Object.assign(pago, { status, status_detail: status === 'approved' ? 'accredited' : status });
       await avisar(pago, pago.notification_url);
       return enviar(res, 200, pago);
     }

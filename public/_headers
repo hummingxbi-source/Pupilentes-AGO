@@ -1,9 +1,12 @@
 # Cabeceras de seguridad para Cloudflare Pages (ARQUITECTURA §6.1 regla 10).
-# Fase 0: CSP en modo SOLO-REPORTE (avisa en la consola del navegador, no bloquea).
-# Fase 3: pasa a Content-Security-Policy estricta, sumando Mercado Pago, el dominio
-# de Supabase del proyecto y el dominio de imágenes de R2.
+# Fase 3: CSP ESTRICTA (bloquea). Scripts solo propios y de Turnstile; sin 'unsafe-inline' en scripts.
 #   - wasm-unsafe-eval: lo necesita MediaPipe (probador con cámara).
 #   - challenges.cloudflare.com: Turnstile (script e iframe).
+#   - *.supabase.co: API, Auth y Edge Functions del proyecto.
+#   - *.r2.cloudflarestorage.com: subida directa del comprobante (URL firmada).
+#   - *.r2.dev: fotos del catálogo en R2. ⚠️ Si se usa dominio propio para las fotos, agregarlo a img-src.
+#   - Mercado Pago Checkout Pro es una redirección (no carga scripts aquí), por eso no aparece.
+#   - style-src 'unsafe-inline': React escribe estilos en línea (style={…}); no ejecuta código.
 
 /*
   X-Content-Type-Options: nosniff
@@ -12,7 +15,7 @@
   Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Cross-Origin-Opener-Policy: same-origin
-  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.r2.dev; font-src 'self'; connect-src 'self' https://*.supabase.co https://*.r2.cloudflarestorage.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 # Archivos con hash: caché larga e inmutable
 /assets/*

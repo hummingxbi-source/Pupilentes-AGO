@@ -62,6 +62,20 @@ node scripts/cuentas-panel.mjs quitar --correo exayudante@ejemplo.mx
 ```
 Al entrar a `/panel` por primera vez se da de alta la app autenticadora (Google o Microsoft Authenticator).
 
+### Compras y pagos en local (Fase 3)
+Sin cuenta de Mercado Pago se usa un **Mercado Pago simulado** que manda los avisos firmados igual que el real:
+```bash
+# 1) En supabase/functions/.env (además de lo de .env.example):
+#    MP_ACCESS_TOKEN=TEST-local  MP_WEBHOOK_SECRET=<cualquier texto largo>
+#    MP_API_URL=http://127.0.0.1:8090
+#    MP_NOTIFICATION_URL=http://127.0.0.1:55321/functions/v1/webhook-mercadopago
+# 2) En otra terminal, con el MISMO secreto:
+MP_WEBHOOK_SECRET=<el mismo> MP_NOTIFICATION_URL=http://127.0.0.1:55321/functions/v1/webhook-mercadopago node scripts/mp-simulado.mjs
+# 3) supabase functions serve  +  npm run dev  → compra en /checkout; MP simulado deja elegir aprobado, rechazado o SPEI.
+#    Acreditar un SPEI pendiente: curl -X POST -d '{"status":"approved"}' http://127.0.0.1:8090/simular/pagos/<payment_id>
+```
+Con credenciales de **prueba** reales de MP: deja `MP_API_URL` vacío, pon el access token de prueba y la clave secreta del webhook, y expón `webhook-mercadopago` con una URL https pública (MP no llama a `localhost`).
+
 ### Pruebas (las mismas que corre el CI en cada push)
 ```bash
 npm run lint                                   # ESLint
