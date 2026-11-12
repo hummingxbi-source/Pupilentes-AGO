@@ -29,6 +29,6 @@ Deno.test('cron-conciliar: secreto, método y latido', async () => {
   const r = await cron(new Request('http://x', { method: 'POST', headers: { 'x-cron-secret': SECRETO } }), admin);
   assert.equal(r.status, 200);
   assert.equal((await r.json()).limites_borrados, 4);
-  assert.deepEqual(llamadas, ['liberar_reservas_vencidas', 'limpiar_limites_tasa', 'registrar_latido']);
+  assert.deepEqual(llamadas, ['liberar_reservas_vencidas', 'limpiar_limites_tasa', 'limpiar_payloads_viejos', 'registrar_latido']);
   Deno.env.delete('CRON_SECRET');
 });

@@ -172,7 +172,7 @@ begin
   select * into v_ped from public.pedidos where clave_idempotencia = v_clave;
   if found then
     return jsonb_build_object('id', v_ped.id, 'folio', v_ped.folio, 'token', v_ped.token_rastreo, 'total', v_ped.total,
-                              'expira', v_ped.expira_reserva_en, 'metodo_pago', v_ped.metodo_pago, 'repetido', true,
+                              'expira', v_ped.expira_reserva_en, 'metodo_pago', v_ped.metodo_pago, 'repetido', true, 'estado', v_ped.estado,
                               'mp_preferencia_id', v_ped.mp_preferencia_id);
   end if;
 
@@ -247,7 +247,8 @@ begin
   v_expira := public.reservar_stock(v_ped.id, v_minutos);   -- sin stock → excepción y se revierte TODO
 
   return jsonb_build_object('id', v_ped.id, 'folio', v_ped.folio, 'token', v_ped.token_rastreo, 'total', v_total,
-                            'subtotal', v_sub, 'envio', v_envio, 'expira', v_expira, 'metodo_pago', v_metodo, 'repetido', false);
+                            'subtotal', v_sub, 'envio', v_envio, 'expira', v_expira, 'metodo_pago', v_metodo, 'repetido', false,
+                            'estado', 'pendiente_pago');
 end
 $$;
 
@@ -425,7 +426,8 @@ declare v_ped public.pedidos;
 begin
   select * into v_ped from public.pedidos where id = p_pedido for update;
   if not found then raise exception 'pedido_no_existe' using errcode = 'P0001'; end if;
-  perform public.cambiar_estado_pedido(p_pedido, 'reembolsado', p_usuario, p_nota);
+  -- El aviso "refunded" de MP puede llegar antes que esta llamada: entonces ya está reembolsado
+  if v_ped.estado <> 'reembolsado' then perform public.cambiar_estado_pedido(p_pedido, 'reembolsado', p_usuario, p_nota); end if;
   update public.pedidos set pago_estado = 'reembolsado' where id = p_pedido;
   insert into public.auditoria_panel (usuario, accion, tabla, registro, despues)
   values (p_usuario, 'reembolsar', 'pedidos', v_ped.folio, jsonb_build_object('total', v_ped.total, 'reembolso', p_id_reembolso, 'nota', p_nota));
