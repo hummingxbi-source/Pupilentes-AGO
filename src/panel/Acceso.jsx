@@ -2,26 +2,37 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, Smartphone, LogOut, ArrowUpRight } from 'lucide-react';
 import { LOGO } from '../ui';
-import { A } from '../lib/catalog';
+import { FAMILIAS } from '../lib/catalog';
 import { useSesion } from './sesion';
 
-// Los iris del catálogo que recorre la escena, como en el probador.
-const TONOS = ['azul', 'verde', 'miel', 'gris', 'aqua', 'avellana'];
-
-/** Lado oscuro: el iris que cambia de color y el logotipo grande (mismo estilo que el footer). */
+/**
+ * Lado oscuro: el contorno de un lente en líneas doradas (borde, zona de color y zona óptica)
+ * con un anillo punteado que gira despacio y, sobre él, el color de cada familia de tonos.
+ * Abajo, el logotipo en el estilo del footer.
+ */
 function Escena() {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const t = setInterval(() => setI((x) => (x + 1) % TONOS.length), 3200);
-    return () => clearInterval(t);
-  }, []);
+  const R = 300;                               // radio de la órbita de los colores
+  const muestras = FAMILIAS.map((f, k) => {
+    const a = (150 + k * 26) * (Math.PI / 180);    // repartidos en el arco izquierdo (la parte visible)
+    return { ...f, x: 400 + R * Math.cos(a), y: 400 - R * Math.sin(a) };
+  });
   return (
     <aside className="acceso-escena" aria-hidden="true">
-      <img className="acceso-logo" src={LOGO} alt="" />
-      <div className="acceso-iris">
-        {TONOS.map((t, k) => <img key={t} src={A(`img/iris/${t}.webp`)} alt="" className={k === i ? 'on' : ''} />)}
-      </div>
+      <div className="acceso-cabeza"><img src={LOGO} alt="" /><span>Panel de la tienda</span></div>
+      <svg className="acceso-lente" viewBox="0 0 800 800">
+        <circle cx="400" cy="400" r="380" className="l1" />
+        <circle cx="400" cy="400" r="300" className="l2" />
+        <g className="giro"><circle cx="400" cy="400" r="240" className="l3" /></g>
+        <circle cx="400" cy="400" r="150" className="l1" />
+        <circle cx="400" cy="400" r="62" className="pupila" />
+        {muestras.map((m) => (
+          <g key={m.id}>
+            <circle cx={m.x} cy={m.y} r="22" style={{ fill: m.hex }} className="muestra" />
+            <circle cx={m.x} cy={m.y} r="30" className="l1" />
+          </g>
+        ))}
+      </svg>
+      <ul className="acceso-familias">{FAMILIAS.map((f) => <li key={f.id}><i style={{ background: f.hex }} />{f.nombre}</li>)}</ul>
       <p className="acceso-marca">Pupilentes<em>AGO</em></p>
     </aside>
   );

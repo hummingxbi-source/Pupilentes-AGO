@@ -884,13 +884,21 @@ table.inv{border-collapse:separate;border-spacing:0;font:400 13px var(--mono);mi
    Escena oscura con el iris que cambia de color + logotipo como el footer; formulario sobre papel. */
 .acceso{min-height:100svh;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);background:var(--paper)}
 .acceso-escena{position:relative;overflow:hidden;background:var(--ink);color:var(--paper);display:flex;flex-direction:column;justify-content:flex-end;padding:clamp(24px,4vw,56px)}
-.acceso-escena::after{content:"";position:absolute;inset:0;background:radial-gradient(60% 50% at 72% 30%,rgba(163,130,76,.16),transparent 70%);pointer-events:none}
-.acceso-logo{position:absolute;top:clamp(20px,3vw,40px);left:clamp(24px,4vw,56px);width:44px;height:44px;border-radius:50%;z-index:2}
-.acceso-iris{position:absolute;top:50%;right:-9%;width:min(64vh,46vw);aspect-ratio:1;transform:translateY(-58%);border-radius:50%;
-  box-shadow:0 0 0 1px rgba(217,199,163,.18),0 40px 120px -20px rgba(0,0,0,.8)}
-.acceso-iris img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;opacity:0;transform:rotate(-8deg) scale(1.04);
-  transition:opacity 1.4s var(--ease),transform 3.2s linear}
-.acceso-iris img.on{opacity:1;transform:rotate(0deg) scale(1)}
+.acceso-escena::after{content:"";position:absolute;inset:0;background:radial-gradient(55% 45% at 78% 28%,rgba(163,130,76,.14),transparent 70%);pointer-events:none}
+.acceso-cabeza{position:absolute;top:clamp(20px,3vw,40px);left:clamp(24px,4vw,56px);display:flex;align-items:center;gap:12px;font-size:14px;color:rgba(251,250,247,.72);z-index:2}
+.acceso-cabeza img{width:44px;height:44px;border-radius:50%}
+.acceso-lente{position:absolute;top:-14%;right:-22%;width:min(88vh,62vw);height:auto;overflow:visible}
+.acceso-lente circle{fill:none}
+.acceso-lente .l1{stroke:rgba(217,199,163,.28);stroke-width:1}
+.acceso-lente .l2{stroke:rgba(217,199,163,.5);stroke-width:1.2}
+.acceso-lente .l3{stroke:var(--gold);stroke-width:1.5;stroke-dasharray:2 10;stroke-linecap:round}
+.acceso-lente .pupila{fill:rgba(163,130,76,.12);stroke:rgba(217,199,163,.35)}
+.acceso-lente .muestra{stroke:rgba(251,250,247,.35);stroke-width:1}
+.acceso-lente .giro{transform-origin:400px 400px;animation:acceso-giro 90s linear infinite}
+@keyframes acceso-giro{to{transform:rotate(360deg)}}
+.acceso-familias{position:relative;z-index:2;list-style:none;display:flex;flex-wrap:wrap;gap:8px 18px;margin:0 0 clamp(22px,3vw,34px);padding:0;font-size:13.5px;color:rgba(251,250,247,.7)}
+.acceso-familias li{display:flex;align-items:center;gap:8px}
+.acceso-familias i{width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 3px rgba(251,250,247,.08)}
 .acceso-marca{position:relative;z-index:2;font:400 clamp(64px,10.5vw,176px)/.82 var(--display);letter-spacing:-.035em;font-style:italic;color:var(--paper);margin:0}
 .acceso-marca em{display:block;font-style:normal;color:var(--gold)}
 .acceso-form{display:grid;place-items:center;padding:clamp(28px,5vw,72px) clamp(20px,4vw,64px)}
@@ -917,11 +925,12 @@ table.inv{border-collapse:separate;border-spacing:0;font:400 13px var(--mono);mi
 @media (max-width:860px){
   .acceso{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   .acceso-escena{min-height:36svh;padding:22px 20px}
-  .acceso-iris{width:min(58vw,300px);right:-14%;top:44%}
+  .acceso-lente{width:min(120vw,560px);top:-46%;right:-44%}
+  .acceso-familias{display:none}
   .acceso-marca{font-size:clamp(52px,15vw,96px)}
   .acceso-form{place-items:start center;padding:32px 16px 48px}
 }
-@media (prefers-reduced-motion:reduce){.acceso-iris img{transition:none}}
+@media (prefers-reduced-motion:reduce){.acceso-lente .giro{animation:none}}
 .err{color:var(--bad);font-size:13.5px;margin-top:10px}
 .tabla-prev{width:100%;border-collapse:collapse;font-size:13px}
 .tabla-prev th,.tabla-prev td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
