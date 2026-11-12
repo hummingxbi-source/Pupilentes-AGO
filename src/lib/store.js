@@ -74,10 +74,10 @@ export const useStore = create(
       agregar: (item) => {
         const bolsa = [...get().bolsa];
         const k = bolsa.findIndex((b) => (item.sku ? b.sku === item.sku : b.id === item.id && b.od === item.od && b.oi === item.oi));
-        if (k >= 0) bolsa[k] = { ...bolsa[k], cant: bolsa[k].cant + item.cant }; else bolsa.push(item);
+        if (k >= 0) bolsa[k] = { ...bolsa[k], cant: Math.min(5, bolsa[k].cant + item.cant) }; else bolsa.push(item);
         set({ bolsa, bolsaAbierta: true });
       },
-      cambiarCant: (i, d) => set({ bolsa: get().bolsa.map((b, j) => (j === i ? { ...b, cant: Math.min(10, Math.max(1, b.cant + d)) } : b)) }),
+      cambiarCant: (i, d) => set({ bolsa: get().bolsa.map((b, j) => (j === i ? { ...b, cant: Math.min(5, Math.max(1, b.cant + d)) } : b)) }),
       quitar: (i) => set({ bolsa: get().bolsa.filter((_, j) => j !== i) }),
       vaciar: () => set({ bolsa: [] }),
 

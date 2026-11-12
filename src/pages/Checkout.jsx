@@ -1,185 +1,198 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { ArrowLeft, ArrowRight, Upload, Check, MessageCircle, Lock, Sparkles } from 'lucide-react';
-import { useStore, normTel, puntosDe, PUNTO_MXN } from '../lib/store';
-import { ENTREGAS, cotizarPaqueteria, cotizarDidi, ALCALDIAS, mxn, waLink } from '../lib/catalog';
+import { ArrowLeft, ArrowRight, Check, Lock, CreditCard, Landmark, ShieldCheck } from 'lucide-react';
+import { useStore } from '../lib/store';
+import { mxn } from '../lib/catalog';
 import { useProductos } from '../lib/tienda';
+import { cargarEntregas, crearPedido } from '../lib/pedidos';
+import { Turnstile } from '../lib/Turnstile';
 import { LOGO, TLink, Iris } from '../ui';
 
+// Caja real (Fase 3): compra como invitada (D5), Mercado Pago con tarjeta o SPEI (D2) o transferencia
+// con apartado de 24 h (D3). El total lo calcula el servidor; aquí solo se muestra.
+
 const HORAS = ['12:00', '15:30', '18:00'];
-const ETAPAS = ['WhatsApp', 'Entrega', 'Datos', 'Pago'];
+const ETAPAS = ['Tus datos', 'Entrega', 'Pago'];
+const ESTACIONES = ['Pantitlán', 'Tepalcates'];
 function dias() { const out = []; const d = new Date(); for (let i = 1; out.length < 5; i++) { const x = new Date(d); x.setDate(d.getDate() + i); if (x.getDay() !== 0) out.push(x); } return out; }
 const fmtDia = (d) => d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' });
-async function comprimir(file) {
-  const url = URL.createObjectURL(file);
-  const img = await new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = j; i.src = url; });
-  const s = Math.min(1, 900 / Math.max(img.width, img.height));
-  const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  return c.toDataURL('image/webp', 0.6); // ~60–120 KB
-}
-const VACIA = { calle: '', colonia: '', ciudad: '', estado: '', cp: '' };
+const TIPOS = [
+  { id: 'metro', nombre: 'Entrega en Metro', detalle: 'Pantitlán o Tepalcates, con cita', icon: 'M' },
+  { id: 'metro_otra', nombre: 'Otra estación de Metro', detalle: 'Costo extra por traslado', icon: 'M+' },
+  { id: 'didi', nombre: 'Envío por DiDi', detalle: 'Mismo día en CDMX y zona oriente', icon: 'D' },
+  { id: 'paqueteria', nombre: 'Paquetería a todo México', detalle: 'Guía con rastreo', icon: 'P' },
+];
+const nuevaClave = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}-pedido`);
+const VACIA = { calle: '', colonia: '', ciudad: '', estado: '', cp: '', referencias: '' };
 
 export default function Checkout() {
-  const { bolsa, crearPedido, notificar, clientes, pedidos, guardarCliente, login } = useStore();
+  const { bolsa, vaciar } = useStore();
   const productos = useProductos();
   const nav = useNavigate();
   const root = useRef();
+  const ts = useRef();
   const [paso, setPaso] = useState(0);
-  const [tel, setTel] = useState(useStore.getState().sesion || '');
-  const [cli, setCli] = useState(null);
+  const [contacto, setContacto] = useState({ nombre: '', telefono: '', correo: '' });
+  const [tarifas, setTarifas] = useState(null);
   const [tipo, setTipo] = useState('metro');
-  const [metro, setMetro] = useState({ est: 'Pantitlán', dia: 0, hora: '15:30', otra: '' });
-  const [didi, setDidi] = useState({ alc: 'Iztacalco' });
-  const [rates, setRates] = useState(null);
-  const [rate, setRate] = useState(null);
-  const [nombre, setNombre] = useState('');
+  const [zona, setZona] = useState({ metro: 'Pantitlán', metro_otra: 'Otra estación', didi: 'Iztacalco', paqueteria: 'Estándar' });
+  const [cita, setCita] = useState({ dia: 0, hora: '15:30', estacion: '' });
   const [dir, setDir] = useState(VACIA);
-  const [dirSel, setDirSel] = useState(-1);
-  const [guardarDir, setGuardarDir] = useState(true);
-  const [usarPts, setUsarPts] = useState(false);
-  const [metodo, setMetodo] = useState('whatsapp');
-  const [comp, setComp] = useState(null);
-  const ds = dias();
+  const [metodo, setMetodo] = useState('mercadopago');
+  const [token, setToken] = useState(null);
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
+  const [totalServidor, setTotalServidor] = useState(null);   // si el servidor dice que el total cambió
+  const clave = useRef(nuevaClave());
+  const ds = useMemo(dias, []);
 
   useGSAP(() => { gsap.from('.co-step > *', { y: 30, opacity: 0, stagger: 0.05, duration: 0.8, ease: 'expo.out', clearProps: 'transform' }); }, { scope: root, dependencies: [paso] });
-  useGSAP(() => { if (rates) gsap.from('.rates .opt', { y: 16, opacity: 0, stagger: 0.06, duration: 0.6, ease: 'expo.out' }); }, { scope: root, dependencies: [rates] });
-  useEffect(() => { if (tipo === 'paqueteria' && /^\d{5}$/.test(dir.cp) && !rates) setRates(cotizarPaqueteria(dir.cp)); }, [tipo]);
+  useEffect(() => { cargarEntregas().then(setTarifas).catch(() => setTarifas([])); }, []);
+  // Cambió algo del pedido → es un pedido distinto (otra clave) y el aviso de total ya no aplica
+  useEffect(() => { clave.current = nuevaClave(); setTotalServidor(null); }, [tipo, zona, metodo, bolsa]);
+
+  const items = useMemo(() => {
+    const m = new Map();
+    for (const b of bolsa) if (b.sku) m.set(b.sku, (m.get(b.sku) ?? 0) + b.cant);
+    return [...m].map(([sku, cantidad]) => ({ sku, cantidad }));
+  }, [bolsa]);
+  const sinSku = bolsa.some((b) => !b.sku);
 
   if (!bolsa.length) return <main className="co"><div className="wrap empty"><p className="h-m" style={{ marginBottom: 16 }}>Tu bolsa está vacía</p><TLink className="btn" to="/tienda">Ir a la tienda</TLink></div></main>;
 
-  const pts = cli ? puntosDe(tel, pedidos, clientes) : 0;
+  const tarifa = tarifas?.find((t) => t.tipo === tipo && t.zona === zona[tipo]);
+  const zonasDe = (t) => (tarifas ?? []).filter((x) => x.tipo === t);
   const sub = bolsa.reduce((a, b) => a + b.precio * b.cant, 0);
-  const desc = usarPts ? Math.min(Math.floor(pts * PUNTO_MXN), Math.floor(sub * 0.3)) : 0;
-  const ptsUsados = Math.ceil(desc / PUNTO_MXN);
-  const costo = tipo === 'metro' ? 0 : tipo === 'metro-otra' ? 60 : tipo === 'didi' ? cotizarDidi(didi.alc) : rate?.costo ?? null;
-  const total = sub - desc + (costo || 0);
-  const necesitaDir = tipo === 'paqueteria' || tipo === 'didi';
-  const entregaOk = tipo === 'metro' || (tipo === 'metro-otra' && metro.otra.trim()) || tipo === 'didi' || (tipo === 'paqueteria' && rate);
-  const datosOk = nombre.trim().length > 2 && (!necesitaDir || (dir.calle && dir.colonia && (tipo === 'didi' || (dir.ciudad && dir.estado))));
+  const envio = tarifa?.costo ?? null;
+  const total = totalServidor ?? sub + (envio ?? 0);
+  const necesitaDir = tipo === 'didi' || tipo === 'paqueteria';
+  const telOk = contacto.telefono.replace(/\D/g, '').length === 10;
+  const correoOk = !contacto.correo || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contacto.correo);
+  const datosOk = contacto.nombre.trim().length >= 2 && telOk && correoOk;
+  const entregaOk = tarifa && (tipo !== 'metro_otra' || cita.estacion.trim()) &&
+    (!necesitaDir || (dir.calle.trim() && dir.colonia.trim() && (tipo === 'didi' || (dir.ciudad.trim() && dir.estado.trim() && /^\d{5}$/.test(dir.cp)))));
 
-  const buscar = () => {
-    const t = normTel(tel); if (t.length !== 10) return notificar('Escribe tu WhatsApp a 10 dígitos');
-    const c = clientes[t]; setCli(c || false); login(t);
-    if (c) { setNombre(c.nombre); if (c.direcciones?.[0]) { setDir(c.direcciones[0]); setDirSel(0); } }
-  };
-  const cotizar = () => { if (!/^\d{5}$/.test(dir.cp)) return notificar('Escribe un código postal de 5 dígitos'); setRate(null); setRates(cotizarPaqueteria(dir.cp)); };
-  const sd = (k) => (e) => { setDir({ ...dir, [k]: e.target.value }); setDirSel(-1); };
-
-  const confirmar = () => {
-    const t = normTel(tel);
-    const dTxt = `${dir.calle}, ${dir.colonia}, ${dir.ciudad}${dir.estado ? ', ' + dir.estado : ''}${dir.cp ? ', CP ' + dir.cp : ''}`;
-    const entrega = tipo === 'paqueteria' ? { tipo, paq: rate.paq, servicio: rate.servicio, costo, detalle: `${rate.paq} ${rate.servicio}`, cp: dir.cp, ciudad: dir.ciudad, dir: dTxt }
-      : tipo === 'didi' ? { tipo, costo, detalle: `DiDi · ${didi.alc}`, dir: `${dir.calle}, ${dir.colonia}, ${didi.alc}` }
-      : { tipo: 'metro', costo, detalle: `Metro ${tipo === 'metro' ? metro.est : metro.otra}`, cita: `${fmtDia(ds[metro.dia])} · ${metro.hora}` };
-    const dirs = cli?.direcciones || [];
-    const nuevaDir = necesitaDir && guardarDir && dirSel === -1 && dir.calle;
-    const lente = bolsa.find((b) => productos.find((p) => p.id === b.id)?.tipo === 'lente');
-    guardarCliente({ tel: t, nombre, direcciones: nuevaDir ? [dir, ...dirs] : dirs, ...(lente ? { receta: { od: lente.od, oi: lente.oi } } : {}) });
-    const f = crearPedido({ clienta: nombre, tel: t, items: bolsa, entrega, subtotal: sub, descuento: desc, puntosUsados: ptsUsados, total, comprobante: metodo === 'whatsapp' ? 'whatsapp' : comp });
-    if (metodo === 'whatsapp') {
-      const lineas = bolsa.map((b) => `• ${b.cant}× ${b.nombre}${b.od !== '0.00' || b.oi !== '0.00' ? ` (OD ${b.od} / OI ${b.oi})` : ''}`).join('\n');
-      const msg = `Hola Pupilentes AGO 💛 Soy ${nombre}. Acabo de hacer mi pedido *${f}*:\n${lineas}\nEntrega: ${entrega.detalle}${entrega.cita ? ' · ' + entrega.cita : ''}\n*Total transferido: ${mxn(total)}*\nTe adjunto mi comprobante 👇`;
-      window.open(waLink(msg), '_blank');
+  const entrega = () => {
+    const e = { tipo, zona: zona[tipo] };
+    if (tipo === 'metro') e.cita = `Metro ${zona.metro} · ${fmtDia(ds[cita.dia])} · ${cita.hora}`;
+    if (tipo === 'metro_otra') e.cita = `Metro ${cita.estacion.trim()} · ${fmtDia(ds[cita.dia])} · ${cita.hora}`;
+    if (necesitaDir) {
+      e.direccion = [dir.calle, dir.colonia, tipo === 'didi' ? zona.didi : dir.ciudad, tipo === 'paqueteria' ? dir.estado : '', dir.cp && `CP ${dir.cp}`].map((x) => x.trim()).filter(Boolean).join(', ').slice(0, 300);
+      if (dir.referencias.trim()) e.referencias = dir.referencias.trim().slice(0, 200);
     }
-    nav(`/pedido/${f}?nuevo=1`);
+    return e;
   };
+
+  const pagar = async () => {
+    if (!token || enviando) return;
+    setEnviando(true); setError('');
+    try {
+      const r = await crearPedido({
+        clave_idempotencia: clave.current, metodo_pago: metodo, items, entrega: entrega(),
+        contacto: { nombre: contacto.nombre.trim(), telefono: contacto.telefono.replace(/\D/g, ''), correo: contacto.correo.trim() },
+        total_visto: total, turnstile: token,
+      });
+      vaciar();
+      if (r.url_pago) { window.location.assign(r.url_pago); return; }
+      nav(`/pedido/${r.token}?nuevo=1`, { replace: true });
+    } catch (e) {
+      if (e.codigo === 'total_cambio' && Number.isFinite(e.datos?.total)) {
+        setTotalServidor(e.datos.total);
+        setError(`El total cambió a ${mxn(e.datos.total)} (precio o envío actualizados). Revísalo y vuelve a confirmar.`);
+      } else {
+        setError(e.message || 'No pudimos crear tu pedido. Inténtalo de nuevo.');
+        if (e.estado === 502 || e.estado === 0) clave.current = nuevaClave();   // MP no respondió: el pedido se canceló
+      }
+      ts.current?.reiniciar();   // cada token de Turnstile sirve una sola vez
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const sc = (k) => (e) => setContacto({ ...contacto, [k]: e.target.value });
+  const sd = (k) => (e) => setDir({ ...dir, [k]: k === 'cp' ? e.target.value.replace(/\D/g, '').slice(0, 5) : e.target.value });
 
   return (
     <div className="cx" ref={root}>
       <header className="cx-top"><div className="wrap">
         <TLink to="/" className="brand"><img src={LOGO} alt="" />PUPILENTES AGO</TLink>
         <ol className="cx-steps">{ETAPAS.map((e, i) => <li key={e} className={i < paso ? 'done' : i === paso ? 'on' : ''}><span>{i < paso ? <Check size={12} /> : i + 1}</span>{e}</li>)}</ol>
-        <span className="cx-lock"><Lock size={14} /> Caja</span>
+        <span className="cx-lock"><Lock size={14} /> Caja segura</span>
       </div></header>
       <main className="co"><div className="wrap grid">
         <div>
           <button className="mute" style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 14 }} onClick={() => (paso ? setPaso(paso - 1) : nav('/tienda'))}><ArrowLeft size={16} /> {paso ? 'Atrás' : 'Seguir comprando'}</button>
 
-          {paso === 0 && (<div className="co-step">
-            <p className="eyebrow" style={{ marginTop: 26 }}>Paso 1 de 4</p>
-            <h1 className="h-l" style={{ margin: '10px 0 14px' }}>¿Cuál es tu <span className="it gold">WhatsApp?</span></h1>
-            <p className="lead">Si ya compraste antes, llenamos tus datos y ves tus puntos. Si eres nueva, te registramos al terminar.</p>
-            <div className="cx-tel"><span className="mono">+52</span><input className="mono" inputMode="tel" autoFocus value={tel} onChange={(e) => { setTel(e.target.value.replace(/[^\d ]/g, '')); setCli(null); }} onKeyDown={(e) => e.key === 'Enter' && buscar()} placeholder="55 1234 5678" aria-label="WhatsApp" /><button className="btn" onClick={buscar}>Continuar</button></div>
-            <p className="mute" style={{ fontSize: 13 }}>Demo: prueba con <button className="link" onClick={() => setTel('5512345678')}>55 1234 5678</button> (clienta registrada).</p>
-            {cli && <div className="cx-hola"><Iris fam="cafe" size={56} /><div><b>¡Hola de nuevo, {cli.nombre.split(' ')[0]}!</b><span>Tienes <b className="gold">{pts} puntos AGO</b> (= {mxn(pts * PUNTO_MXN)}) para usar hoy.</span></div><button className="btn" onClick={() => setPaso(1)}>Seguir <ArrowRight size={18} /></button></div>}
-            {cli === false && <div className="cx-hola"><Sparkles size={26} className="gold" /><div><b>¡Bienvenida!</b><span>Con esta compra abres tu cuenta AGO y empiezas a sumar puntos.</span></div><button className="btn" onClick={() => setPaso(1)}>Seguir <ArrowRight size={18} /></button></div>}
-          </div>)}
+          {paso === 0 && (<form className="co-step" onSubmit={(e) => { e.preventDefault(); if (datosOk) setPaso(1); }}>
+            <h1 className="h-l" style={{ margin: '26px 0 12px' }}>¿A quién le <span className="it gold">entregamos?</span></h1>
+            <p className="lead">No necesitas cuenta. Con tu WhatsApp te confirmamos la entrega.</p>
+            <div className="field"><label htmlFor="co-nombre">Nombre completo</label><input id="co-nombre" className="inp" autoComplete="name" required maxLength={120} value={contacto.nombre} onChange={sc('nombre')} /></div>
+            <div className="field"><label htmlFor="co-tel">WhatsApp (10 dígitos)</label>
+              <div className="cx-tel" style={{ marginTop: 0 }}><span className="mono">+52</span><input id="co-tel" className="mono" inputMode="tel" autoComplete="tel-national" required value={contacto.telefono} onChange={(e) => setContacto({ ...contacto, telefono: e.target.value.replace(/[^\d ]/g, '').slice(0, 14) })} placeholder="55 1234 5678" /></div>
+              {contacto.telefono && !telOk && <p className="err">Escribe los 10 dígitos de tu número.</p>}
+            </div>
+            <div className="field"><label htmlFor="co-correo">Correo <span className="mute">(opcional, para tu recibo)</span></label><input id="co-correo" className="inp" type="email" autoComplete="email" maxLength={254} value={contacto.correo} onChange={sc('correo')} />
+              {!correoOk && <p className="err">Revisa tu correo.</p>}</div>
+            <button className="btn full" style={{ marginTop: 22, height: 58 }} disabled={!datosOk}>Continuar <ArrowRight size={18} /></button>
+          </form>)}
 
           {paso === 1 && (<div className="co-step">
-            <p className="eyebrow" style={{ marginTop: 26 }}>Paso 2 de 4</p><h1 className="h-l" style={{ margin: '10px 0 24px' }}>¿Cómo lo quieres <span className="it gold">recibir?</span></h1>
-            {ENTREGAS.map((e) => (
-              <button key={e.id} className={'opt ' + (tipo === e.id ? 'on' : '')} onClick={() => setTipo(e.id)}>
-                <span className="ic">{e.icon}</span><span className="t"><b>{e.nombre}</b><small>{e.detalle}</small></span>
-                <span className="c">{e.costo === 0 ? 'Gratis' : e.costo ? `+${mxn(e.costo)}` : 'Cotizar'}</span>
-              </button>))}
-            <div className="box" style={{ marginTop: 18 }}>
-              {(tipo === 'metro' || tipo === 'metro-otra') && (<>
-                {tipo === 'metro' ? <div className="seg">{['Pantitlán', 'Tepalcates'].map((s) => <button key={s} className={metro.est === s ? 'on' : ''} onClick={() => setMetro({ ...metro, est: s })}>Metro {s}</button>)}</div>
-                  : <div className="field" style={{ marginTop: 0 }}><label>¿Qué estación?</label><input className="inp" value={metro.otra} onChange={(e) => setMetro({ ...metro, otra: e.target.value })} placeholder="Ej. Metro Zaragoza" /></div>}
-                <div className="field"><label>Día</label><div className="frow">{ds.map((x, i) => <button key={i} className={'chip ' + (metro.dia === i ? 'on' : '')} onClick={() => setMetro({ ...metro, dia: i })}>{fmtDia(x)}</button>)}</div></div>
-                <div className="field"><label>Hora</label><div className="frow">{HORAS.map((h) => <button key={h} className={'chip mono ' + (metro.hora === h ? 'on' : '')} onClick={() => setMetro({ ...metro, hora: h })}>{h}</button>)}</div></div>
+            <h1 className="h-l" style={{ margin: '26px 0 24px' }}>¿Cómo lo quieres <span className="it gold">recibir?</span></h1>
+            {!tarifas && <p className="mute" role="status">Cargando opciones de entrega…</p>}
+            {tarifas?.length === 0 && <p className="err" role="alert">No pudimos cargar las opciones de entrega. Recarga la página.</p>}
+            {tarifas?.length > 0 && TIPOS.filter((t) => zonasDe(t.id).length).map((t) => {
+              const costos = zonasDe(t.id).map((x) => x.costo);
+              const min = Math.min(...costos), max = Math.max(...costos);
+              return (
+                <button key={t.id} className={'opt ' + (tipo === t.id ? 'on' : '')} onClick={() => setTipo(t.id)}>
+                  <span className="ic">{t.icon}</span><span className="t"><b>{t.nombre}</b><small>{t.detalle}</small></span>
+                  <span className="c">{max === 0 ? 'Gratis' : min === max ? `+${mxn(min)}` : `desde ${mxn(min)}`}</span>
+                </button>);
+            })}
+            {tarifa && <div className="box" style={{ marginTop: 18 }}>
+              {(tipo === 'metro' || tipo === 'metro_otra') && (<>
+                {tipo === 'metro'
+                  ? <div className="seg">{zonasDe('metro').map((s) => <button key={s.zona} className={zona.metro === s.zona ? 'on' : ''} onClick={() => setZona({ ...zona, metro: s.zona })}>Metro {s.zona}</button>)}</div>
+                  : <div className="field" style={{ marginTop: 0 }}><label htmlFor="co-est">¿Qué estación?</label><input id="co-est" className="inp" maxLength={60} value={cita.estacion} onChange={(e) => setCita({ ...cita, estacion: e.target.value })} placeholder="Ej. Zaragoza" /></div>}
+                <div className="field"><label>Día</label><div className="frow">{ds.map((x, i) => <button key={i} className={'chip ' + (cita.dia === i ? 'on' : '')} onClick={() => setCita({ ...cita, dia: i })}>{fmtDia(x)}</button>)}</div></div>
+                <div className="field"><label>Hora</label><div className="frow">{HORAS.map((h) => <button key={h} className={'chip mono ' + (cita.hora === h ? 'on' : '')} onClick={() => setCita({ ...cita, hora: h })}>{h}</button>)}</div></div>
+                <p className="note">Te confirmamos la cita por WhatsApp.</p>
               </>)}
               {tipo === 'didi' && (<>
-                <div className="field" style={{ marginTop: 0 }}><label>Alcaldía o municipio</label><select className="inp" value={didi.alc} onChange={(e) => setDidi({ alc: e.target.value })}>{ALCALDIAS.map((a) => <option key={a}>{a}</option>)}</select></div>
-                <p className="note">Costo estimado del DiDi: <b className="mono">{mxn(cotizarDidi(didi.alc))}</b>. Te lo confirmamos con tu dirección exacta antes de pedirlo.</p>
+                <div className="field" style={{ marginTop: 0 }}><label htmlFor="co-alc">Alcaldía o municipio</label>
+                  <select id="co-alc" className="inp" value={zona.didi} onChange={(e) => setZona({ ...zona, didi: e.target.value })}>{zonasDe('didi').map((a) => <option key={a.zona} value={a.zona}>{a.zona} · {mxn(a.costo)}</option>)}</select></div>
               </>)}
-              {tipo === 'paqueteria' && (<>
-                <label className="eyebrow" htmlFor="cp">Tu código postal</label>
-                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                  <input id="cp" className="inp mono" inputMode="numeric" maxLength={5} value={dir.cp} onChange={(e) => { setDir({ ...dir, cp: e.target.value.replace(/\D/g, '') }); setRates(null); setRate(null); }} onKeyDown={(e) => e.key === 'Enter' && cotizar()} placeholder="00000" style={{ fontSize: 22, letterSpacing: '.2em', height: 56 }} />
-                  <button className="btn" style={{ height: 56 }} onClick={cotizar}>Cotizar</button>
-                </div>
-                {rates && <div className="rates">{rates.map((r) => (
-                  <button key={r.id} className={'opt ' + (rate?.id === r.id ? 'on' : '')} onClick={() => setRate(r)}>
-                    <span className="ic">{r.paq.slice(0, 3).toUpperCase()}</span><span className="t"><b>{r.paq} · {r.servicio}</b><small>{r.dias} hábiles · guía con rastreo</small></span><span className="c">{mxn(r.costo)}</span>
-                  </button>))}</div>}
+              {tipo === 'paqueteria' && (
+                <div className="seg">{zonasDe('paqueteria').map((s) => <button key={s.zona} className={zona.paqueteria === s.zona ? 'on' : ''} onClick={() => setZona({ ...zona, paqueteria: s.zona })}>{s.zona} · {mxn(s.costo)}</button>)}</div>
+              )}
+              {tarifa.detalle && <p className="note">{tarifa.detalle}</p>}
+              {necesitaDir && (<>
+                <div className="field"><label htmlFor="co-calle">Calle y número</label><input id="co-calle" className="inp" maxLength={120} autoComplete="address-line1" value={dir.calle} onChange={sd('calle')} /></div>
+                <div className="two"><div className="field"><label htmlFor="co-col">Colonia</label><input id="co-col" className="inp" maxLength={80} value={dir.colonia} onChange={sd('colonia')} /></div>
+                  {tipo === 'paqueteria' && <div className="field"><label htmlFor="co-cp">Código postal</label><input id="co-cp" className="inp mono" inputMode="numeric" autoComplete="postal-code" value={dir.cp} onChange={sd('cp')} /></div>}</div>
+                {tipo === 'paqueteria' && <div className="two"><div className="field"><label htmlFor="co-ciu">Ciudad o municipio</label><input id="co-ciu" className="inp" maxLength={60} autoComplete="address-level2" value={dir.ciudad} onChange={sd('ciudad')} /></div><div className="field"><label htmlFor="co-edo">Estado</label><input id="co-edo" className="inp" maxLength={40} autoComplete="address-level1" value={dir.estado} onChange={sd('estado')} /></div></div>}
+                <div className="field"><label htmlFor="co-ref">Referencias <span className="mute">(opcional)</span></label><input id="co-ref" className="inp" maxLength={200} value={dir.referencias} onChange={sd('referencias')} placeholder="Portón negro, entre calles…" /></div>
               </>)}
-            </div>
-            <button className="btn full" style={{ marginTop: 20, height: 58 }} disabled={!entregaOk} onClick={() => setPaso(2)}>Continuar <ArrowRight size={18} /></button>
+            </div>}
+            <button className="btn full" style={{ marginTop: 20, height: 58 }} disabled={!entregaOk} onClick={() => setPaso(2)}>Ir al pago <ArrowRight size={18} /></button>
           </div>)}
 
           {paso === 2 && (<div className="co-step">
-            <p className="eyebrow" style={{ marginTop: 26 }}>Paso 3 de 4</p><h1 className="h-l" style={{ margin: '10px 0 10px' }}>Tus <span className="it gold">datos</span></h1>
-            <p className="mute" style={{ marginBottom: 6 }}>{tipo === 'paqueteria' ? 'Se usan tal cual para generar tu guía de envío.' : 'Para confirmarte por WhatsApp.'}</p>
-            <div className="field"><label>Nombre completo</label><input className="inp" value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete="name" /></div>
-            {necesitaDir && (<>
-              {cli?.direcciones?.length > 0 && <div className="field"><label>Enviar a</label>
-                {cli.direcciones.map((d, i) => <button key={i} className={'opt ' + (dirSel === i ? 'on' : '')} onClick={() => { setDir(d); setDirSel(i); if (tipo === 'paqueteria') { setRates(cotizarPaqueteria(d.cp)); } }}><span className="ic">{i + 1}</span><span className="t"><b>{d.calle}</b><small>{d.colonia}, {d.ciudad}, CP {d.cp}</small></span></button>)}
-                <button className={'opt ' + (dirSel === -1 ? 'on' : '')} onClick={() => { setDir({ ...VACIA, cp: tipo === 'paqueteria' ? dir.cp : '' }); setDirSel(-1); }}><span className="ic">+</span><span className="t"><b>Otra dirección</b><small>Por ejemplo, tu trabajo</small></span></button>
-              </div>}
-              {dirSel === -1 && (<>
-                <div className="field"><label>Calle y número</label><input className="inp" value={dir.calle} onChange={sd('calle')} autoComplete="street-address" /></div>
-                <div className="two"><div className="field"><label>Colonia</label><input className="inp" value={dir.colonia} onChange={sd('colonia')} /></div>
-                  {tipo === 'paqueteria' && <div className="field"><label>Ciudad / municipio</label><input className="inp" value={dir.ciudad} onChange={sd('ciudad')} /></div>}</div>
-                {tipo === 'paqueteria' && <div className="two"><div className="field"><label>Estado</label><input className="inp" value={dir.estado} onChange={sd('estado')} /></div><div className="field"><label>Código postal</label><input className="inp mono" value={dir.cp} disabled /></div></div>}
-                <label className="check"><input type="checkbox" checked={guardarDir} onChange={(e) => setGuardarDir(e.target.checked)} /> Guardar esta dirección para la próxima</label>
-              </>)}
-            </>)}
-            <button className="btn full" style={{ marginTop: 22, height: 58 }} disabled={!datosOk} onClick={() => setPaso(3)}>Ir al pago <ArrowRight size={18} /></button>
-          </div>)}
-
-          {paso === 3 && (<div className="co-step">
-            <p className="eyebrow" style={{ marginTop: 26 }}>Paso 4 de 4</p><h1 className="h-l" style={{ margin: '10px 0 22px' }}>Transfiere y <span className="it gold">listo</span></h1>
-            {pts >= 20 && <label className="check box" style={{ marginTop: 0, marginBottom: 14 }}><input type="checkbox" checked={usarPts} onChange={(e) => setUsarPts(e.target.checked)} /><span style={{ flex: 1 }}>Usar mis puntos AGO <span className="mute">· tienes {pts}</span></span><b className="mono gold">−{mxn(Math.min(Math.floor(pts * PUNTO_MXN), Math.floor(sub * 0.3)))}</b></label>}
-            <div className="bank">
-              <div>Banco <b>BBVA (demo)</b></div><div>CLABE <b>0121 8000 1234 5678 90</b></div><div>Titular <b>Pupilentes AGO (demo)</b></div>
-              <div>Monto exacto <b style={{ fontSize: 22 }}>{mxn(total)}</b></div>
-            </div>
-            <p className="eyebrow" style={{ margin: '24px 0 10px' }}>¿Cómo nos mandas tu comprobante?</p>
-            <button className={'opt ' + (metodo === 'whatsapp' ? 'on' : '')} onClick={() => setMetodo('whatsapp')}><span className="ic"><MessageCircle size={18} /></span><span className="t"><b>Por WhatsApp <span className="tg gold" style={{ marginLeft: 6 }}>Recomendado</span></b><small>Se abre el chat con tu pedido ya escrito; solo adjuntas la captura y envías.</small></span></button>
-            <button className={'opt ' + (metodo === 'subir' ? 'on' : '')} onClick={() => setMetodo('subir')}><span className="ic"><Upload size={18} /></span><span className="t"><b>Subirlo aquí</b><small>Lo revisamos al momento.</small></span></button>
-            {metodo === 'subir' && <>
-              <label className={'upload ' + (comp ? 'ok' : '')}>
-                <input type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) { try { setComp(await comprimir(f)); } catch { notificar('No pude leer esa imagen'); } } }} />
-                {comp ? <><Check size={20} /> Comprobante listo · tocar para cambiar</> : <><Upload size={20} /> Subir foto o captura del comprobante</>}
-              </label>
-              {comp && <img src={comp} alt="Comprobante" className="proof" style={{ marginTop: 12 }} />}
-            </>}
-            <button className="btn full gold" style={{ marginTop: 22, height: 60 }} disabled={metodo === 'subir' && !comp} onClick={confirmar}>{metodo === 'whatsapp' ? <><MessageCircle size={18} /> Apartar y abrir WhatsApp</> : 'Apartar mi pedido'}</button>
-            <p className="mute" style={{ fontSize: 13, marginTop: 10 }}>Tus piezas quedan apartadas 24 h mientras validamos tu pago.</p>
+            <h1 className="h-l" style={{ margin: '26px 0 22px' }}>¿Cómo quieres <span className="it gold">pagar?</span></h1>
+            <button className={'opt ' + (metodo === 'mercadopago' ? 'on' : '')} onClick={() => setMetodo('mercadopago')}>
+              <span className="ic"><CreditCard size={18} /></span><span className="t"><b>Tarjeta o SPEI con Mercado Pago</b><small>Pagas en la página segura de Mercado Pago. Apartamos tus piezas mientras pagas.</small></span></button>
+            <button className={'opt ' + (metodo === 'transferencia' ? 'on' : '')} onClick={() => setMetodo('transferencia')}>
+              <span className="ic"><Landmark size={18} /></span><span className="t"><b>Transferencia directa</b><small>Te damos la CLABE y apartamos tus piezas 24 horas mientras validamos tu pago.</small></span></button>
+            {sinSku && <p className="err" role="alert">Uno de los artículos de tu bolsa es de una versión anterior de la tienda. Quítalo y vuelve a agregarlo.</p>}
+            <div style={{ marginTop: 22 }}><Turnstile ref={ts} accion="pedido" alCambiar={setToken} /></div>
+            {error && <p className="err" role="alert">{error}</p>}
+            <button className="btn full gold" style={{ marginTop: 16, height: 60 }} disabled={!token || enviando || sinSku || !items.length} onClick={pagar}>
+              {enviando ? 'Un momento…' : metodo === 'mercadopago' ? <>Pagar {mxn(total)} con Mercado Pago</> : <>Apartar y ver datos de transferencia</>}
+            </button>
+            <p className="mute" style={{ fontSize: 13, marginTop: 10, display: 'flex', gap: 6, alignItems: 'flex-start' }}><ShieldCheck size={15} style={{ flex: 'none', marginTop: 2 }} />
+              {metodo === 'mercadopago' ? 'No guardamos los datos de tu tarjeta: los recibe directamente Mercado Pago.' : 'Si no recibimos tu pago en 24 horas, el apartado se libera solo.'}</p>
           </div>)}
         </div>
 
@@ -190,10 +203,9 @@ export default function Checkout() {
               <span style={{ flex: 1 }}><b>{b.cant}× {b.nombre}</b>{(b.graduacion ?? b.od) !== '0.00' && <span className="mono mute" style={{ display: 'block', fontSize: 12 }}>Graduación {b.graduacion ?? b.od} · el par</span>}</span><span className="mono">{mxn(b.precio * b.cant)}</span></div>); })}
           <div style={{ borderTop: '1px solid var(--line)', margin: '12px 0' }} />
           <div className="sum"><span>Subtotal</span><span className="mono">{mxn(sub)}</span></div>
-          {desc > 0 && <div className="sum gold"><span>Puntos AGO</span><span className="mono">−{mxn(desc)}</span></div>}
-          <div className="sum"><span>Envío</span><span className="mono">{costo === null ? '—' : costo === 0 ? 'Gratis' : mxn(costo)}</span></div>
+          <div className="sum"><span>Envío</span><span className="mono">{paso < 1 || envio === null ? '—' : envio === 0 ? 'Gratis' : mxn(envio)}</span></div>
           <div className="sum t"><span>Total</span><span className="mono">{mxn(total)}</span></div>
-          <p className="mute" style={{ fontSize: 13, marginTop: 8 }}>Con esta compra sumas <b className="gold">{Math.floor((sub - desc) / 10)} puntos AGO</b>.</p>
+          {totalServidor !== null && <p className="note" style={{ marginTop: 8 }}>Total actualizado por la tienda.</p>}
         </aside>
       </div></main>
     </div>

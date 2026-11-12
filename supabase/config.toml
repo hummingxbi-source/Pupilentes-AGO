@@ -438,3 +438,15 @@ verify_jwt = false
 [functions.panel-stock]
 [functions.panel-catalogo]
 [functions.r2-firmar]
+
+# Fase 3 · pedidos y pagos. La tienda las llama con la llave publicable (sin sesión: compra como invitada);
+# cada una se protege con Turnstile, límites y token de rastreo. El webhook lo llama Mercado Pago.
+[functions.pedidos-crear]
+verify_jwt = false
+[functions.pedidos-rastrear]
+verify_jwt = false
+[functions.comprobantes-subir]
+verify_jwt = false
+[functions.webhook-mercadopago]
+verify_jwt = false
+[functions.panel-pedidos]

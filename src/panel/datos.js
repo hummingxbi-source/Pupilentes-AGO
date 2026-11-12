@@ -57,7 +57,7 @@ export async function historial(varianteId) {
 
 export async function cargarPedidos() {
   return exigir(await supabase.from('pedidos')
-    .select('id, folio, estado, pago_estado, canal, contacto, subtotal, envio, total, entrega, creado_en, clienta_id, pedido_items(cantidad, precio_unitario, variante:variantes(sku, graduacion, duracion, tono:tonos(nombre), producto:productos(nombre)))')
+    .select('id, folio, estado, pago_estado, metodo_pago, no_entregar, canal, contacto, subtotal, envio, total, entrega, creado_en, expira_reserva_en, clienta_id, pagos(proveedor, estado, estado_detalle, id_externo, comprobante_clave, creado_en), pedido_items(cantidad, precio_unitario, variante:variantes(sku, graduacion, duracion, tono:tonos(nombre), producto:productos(nombre)))')
     .order('creado_en', { ascending: false }).limit(300));
 }
 
@@ -72,6 +72,21 @@ export const previsualizarStock = (filas) => llamarFuncion('panel-stock', { cuer
 export const aplicarStock = (lote, filas, motivo, nota) => llamarFuncion('panel-stock', { cuerpo: { accion: 'aplicar', lote, filas, motivo, nota: nota || undefined } });
 export const revisarCatalogo = (filas) => llamarFuncion('panel-catalogo', { cuerpo: { accion: 'revisar', filas } });
 export const aplicarCatalogo = (filas) => llamarFuncion('panel-catalogo', { cuerpo: { accion: 'aplicar', filas } });
+
+// --- Pedidos y alertas (Fase 3) ----------------------------------------------------
+/** Acciones sobre un pedido: validar_transferencia, estado, cancelar, reembolsar, comprobante (panel-pedidos). */
+export const accionPedido = (cuerpo) => llamarFuncion('panel-pedidos', { cuerpo });
+export async function cargarAlertas() { return exigir(await supabase.rpc('panel_alertas')); }
+export async function atenderAlerta(id) { return exigir(await supabase.rpc('panel_atender_alerta', { p_id: id })); }
+export const ALERTAS = {
+  pagado_sin_stock: 'Pagó pero ya no hay stock: reembolsa o cambia el tono',
+  monto_distinto: 'Pago con monto distinto al pedido: revisa en Mercado Pago',
+  contracargo: 'Contracargo: no entregues este pedido',
+  reembolso: 'Mercado Pago registró un reembolso',
+  pago_sin_pedido: 'Llegó un pago que no corresponde a ningún pedido',
+  webhook_fallido: 'Un aviso de pago no se pudo procesar (se reintenta solo)',
+  cron_sin_correr: 'Las tareas automáticas no corren desde hace más de 30 min',
+};
 
 // --- Estados de pedido (ARQUITECTURA §3.3) ---------------------------------------
 export const ESTADOS_PEDIDO = {
