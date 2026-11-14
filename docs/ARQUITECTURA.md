@@ -2,7 +2,7 @@
 
 > Documento vivo. Es la guía para que cualquier persona del equipo (con Claude) desarrolle el proyecto real, fase por fase.
 > **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
-> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 11 nov 2026 (v2.4) · **Estado: Fases 0, 1 y 2 cerradas. Fase 3 — código terminado** (rama `fase/3-pagos`), verificada en local con Mercado Pago simulado; falta probar con credenciales de prueba reales de MP. Pendiente del equipo: repo a privado y decisión D4. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
+> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v2.5) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local (§5, Fase 2). Fase 3 — código terminado** (rama `fase/3-pagos`, PR #13) con pruebas de integración y seguridad en el CI; falta probar con credenciales de prueba reales de MP. Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
 >
 > Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
 
@@ -294,7 +294,7 @@ Reglas del flujo:
 3. **Topes anti-acaparamiento:** máximo de piezas por renglón y por pedido, y máximo de pedidos sin pagar por IP y por teléfono. Sin esto, un bot podría reservar todo el inventario sin pagar.
 4. **El webhook solo avisa; la verdad se consulta.** Tras verificar la firma, la función pide el pago a la API de Mercado Pago con nuestro token y comprueba: `external_reference` = nuestro pedido, monto = `pedidos.total`, moneda = MXN, estado = `approved`. Solo entonces confirma.
 5. **Firma:** HMAC-SHA256 con el secreto de la aplicación sobre `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`, comparado en tiempo constante con el `v1` de la cabecera `x-signature`; si no coincide, 401 [23].
-6. **Tiempos:** Mercado Pago espera 200/201 en menos de 22 s y, si no, reintenta cada 15 minutos [23]. Respondemos de inmediato y procesamos con `waitUntil`.
+6. **Tiempos:** Mercado Pago espera 200/201 en menos de 22 s y, si no, reintenta cada 15 minutos [23]. *(Así quedó en la Fase 3:)* el aviso se procesa dentro de la petición (consulta a MP con 10 s de tope + funciones SQL), muy por debajo de los 22 s; si algo falla se responde 500 y MP reintenta. `waitUntil` queda para ML (500 ms) y TikTok (3 s). La clave de idempotencia del aviso usa `id`, `action` y `date_created` del cuerpo (no `x-request-id`), para que los reintentos del mismo aviso se cuenten juntos; MP marca los reintentos con la cabecera `X-Retry` [23]. ⚠️ Confirmar con el sandbox real que esos campos no cambian entre reintentos.
 7. **Pago que llega tarde** (la reserva ya venció): se intenta reservar de nuevo. Si hay stock, se confirma. Si no, el pedido queda en `pagado_sin_stock`, se genera una alerta y la dueña lo reembolsa desde el panel (`panel-pedidos`, acción `reembolsar`).
 8. **Contracargos y reembolsos** cambian el pedido a `contracargo` / `reembolsado` y generan alerta. Las alertas de fraude de Mercado Pago no se reintentan si no se responde 200 [23]; se registran y marcan el pedido como "no entregar".
 9. **Efectivo y SPEI por Mercado Pago (D2 decidida: tarjeta y SPEI, sin OXXO).** Mercado Pago recomienda dar al menos 3 días de vigencia a los pagos fuera de línea porque la acreditación puede tardar hasta 2 horas hábiles; la vigencia se fija con `date_of_expiration`, y si el pago llega vencido se devuelve a la cuenta del pagador [24]. Eso obliga a reservar la pieza hasta 3 días. Propuesta: cuando el webhook informa un pago pendiente fuera de línea, la reserva se extiende hasta esa vigencia.
@@ -312,7 +312,10 @@ Reglas del flujo:
 
 **D. Cron (cada 10 min):** toma un candado (`pg_advisory_lock`) para no encimarse con la corrida anterior; libera reservas vencidas; procesa `cola_sync` y reintenta eventos fallidos; recupera órdenes de ML (`missed_feeds`) y TikTok sin webhook; compara el stock publicado contra el nuestro y corrige; borra `payload` viejos. La función exige un secreto guardado en Vault [20].
 
-**E. Cancelación / devolución:** `mover_stock(+n, 'devolucion')`, solo si la dueña confirma en el panel que el producto regresó vendible.
+**E. Cancelación / devolución (decidido 14 nov):** siempre con `mover_stock(+n, 'devolucion')` y una referencia única por pedido y variante, así que repetirlo no duplica.
+- Reembolso o contracargo de un pedido que **no salió** (`pagado` / `preparando`): las piezas siguen en la tienda y el stock regresa **solo**, venga del panel o del aviso de Mercado Pago.
+- Pedido **ya enviado o entregado**: el stock regresa solo cuando la dueña confirma en el panel que el producto volvió vendible (`panel-pedidos`, acción `devolver`).
+- `pagado_sin_stock` nunca descontó stock: no hay nada que regresar.
 
 **F. Rastreo público:** el enlace del mensaje de confirmación lleva `token_rastreo` (imposible de adivinar) y abre el pedido directo. Sin enlace, `pedidos-rastrear` pide folio + últimos 4 dígitos del teléfono + Turnstile, con un máximo de 5 intentos por folio por hora (4 dígitos son solo 10,000 combinaciones y el folio es consecutivo, así que sin ese tope se podría adivinar). Muestra estado y guía, nunca el domicilio completo.
 
@@ -389,14 +392,14 @@ Reglas del flujo:
 ### Fase 2 · Panel seguro e inventario
 - [x] Login de panel (Supabase Auth, correo + contraseña) con **MFA (TOTP)**; roles `duena`/`ayudante` en `perfiles_panel`. Las cuentas de panel las crea el equipo; no hay registro abierto al panel. *(`scripts/cuentas-panel.mjs crear | rol | quitar | reiniciar-mfa | lista`.)*
 - [x] **MFA forzado en la BD y en las funciones**, no solo en la pantalla: políticas RLS restrictivas que exigen `aal2` en las tablas del panel [26], y `auth.ts` rechaza sesiones de panel sin `aal2`. *(La política restrictiva aplica a usuarios del panel; las clientas de la Fase 7 no quedan bloqueadas por ella.)*
-- [ ] Segunda cuenta de administración con MFA para recuperación (si la dueña pierde su teléfono) (⚠️ D4). *(Herramienta lista: `cuentas-panel.mjs crear` y `reiniciar-mfa`, auditadas. Falta decidir D4: a nombre de quién.)*
+- [ ] *(Pospuesto hasta crear el proyecto en la nube.)* Segunda cuenta de administración con MFA para recuperación (si la dueña pierde su teléfono). **D4 decidida (14 nov): la cuenta es de HummingX**, igual que la infraestructura. *(Herramienta lista: `cuentas-panel.mjs crear` y `reiniciar-mfa`, auditadas.)*
 - [x] Inventario: ajustes con motivo (Edge Function `panel-stock` → `mover_stock`), historial por variante, alertas de stock bajo. *(`panel_ajustar_stock`: todo o nada, no baja de lo apartado y detecta si el stock cambió desde la vista previa.)*
 - [x] Importar/exportar Excel contra la BD con vista previa antes de aplicar.
 - [x] Catálogo: alta y edición de productos, variantes e imágenes (subida a R2 según §2.4, compresión a WebP). *(Alta con la misma plantilla y la misma función SQL `aplicar_catalogo` que la terminal. Fotos: `r2-firmar` + verificación probadas con R2 simulado; se activan al crear el bucket.)*
 - [x] `auditoria_panel` registrando cambios de precio y ajustes. *(Trigger en marcas, productos, tonos, variantes e imágenes + ajustes, importaciones y cambios de cuentas.)*
 - [x] Vistas Hoy, Pedidos y Clientas conectadas a la BD. Cierre de sesión por inactividad. *(30 min. Las acciones sobre pedidos llegan en las Fases 3 y 4.)*
 
-**Probar a mano:** entrar con MFA, ajustar stock, importar un Excel con errores (avisa sin aplicar), subir una foto.
+**Probar a mano:** entrar con MFA, ajustar stock, importar un Excel con errores (avisa sin aplicar), subir una foto. *(⚠️ 14 nov: pendiente; nadie la ha hecho todavía. La foto queda para cuando exista el bucket de R2.)*
 **Automáticas:** sin sesión → 401; sesión con contraseña pero sin MFA → sin datos y 403; `ayudante` intentando borrar o ajustar stock → 403; una clienta con sesión (OTP) no lee ni una fila del panel; Excel malformado no toca la BD; subir un archivo que no es imagen → se rechaza y se borra.
 **Terminado cuando:** la dueña podría operar sin su Excel y el CI está en verde.
 
@@ -414,7 +417,9 @@ Reglas del flujo:
 - [x] D2 (tarjeta y SPEI, sin OXXO), D3 (24 h) y D5 (invitada) resueltas el 11 nov.
 - [x] Mensajes de WhatsApp prellenados del panel conectados a pedidos reales.
 
-- [ ] Probar con las **credenciales de prueba reales** de Mercado Pago (tarjetas de prueba y webhook público) antes de cerrar la fase. En local se usa `scripts/mp-simulado.mjs`.
+- [x] Reembolso o contracargo devuelve el stock si el pedido no salió; si ya salió, la dueña lo confirma (§3.3 E). *(14 nov.)*
+- [x] Trabajo `integracion` del CI con `tests/seguridad` (§7.1): las Edge Functions reales contra Supabase local, Mercado Pago simulado y Turnstile de prueba, incluido el panel con MFA real. *(14 nov.)*
+- [ ] Probar con las **credenciales de prueba reales** de Mercado Pago (tarjetas de prueba y webhook público) antes de cerrar la fase. En local se usa `scripts/mp-simulado.mjs`. En esa prueba confirmar también que `id` y `date_created` del aviso no cambian entre reintentos (§3.3 A, regla 6).
 
 **Probar a mano:** compra con tarjeta de prueba; con OXXO de prueba (si aplica); por transferencia aprobada y rechazada; pago abandonado (se libera la reserva); doble toque en "pagar" (un solo pedido); dos compras simultáneas de la última pieza (solo una pasa); pagar después de vencida la reserva.
 **Automáticas:** todos los casos de §6.3 marcados como Fase 3.
@@ -516,7 +521,7 @@ Reglas del flujo:
 | `pedidos-rastrear` | Público | Token, o folio + 4 dígitos + Turnstile + límite por folio |
 | `comprobantes-subir` | Público con token del pedido | Token + Turnstile + límite + tipo y tamaño |
 | `panel-stock`, `panel-catalogo` | `duena` | Sesión válida + `aal2` + rol |
-| `panel-pedidos` | `duena` (validar, cancelar, reembolsar); `duena` o `ayudante` (avanzar entrega, ver comprobante) | Sesión válida + `aal2` + rol por acción |
+| `panel-pedidos` | `duena` (validar, cancelar, reembolsar, regresar al inventario); `duena` o `ayudante` (avanzar entrega, ver comprobante) | Sesión válida + `aal2` + rol por acción |
 | `envios-guia`, `r2-firmar` | `duena` o `ayudante` | Sesión válida + `aal2` + rol |
 | `webhook-*` | El proveedor | Firma o secreto + idempotencia + consulta al proveedor |
 | `cron-conciliar` | Supabase Cron | Secreto de Vault en la cabecera |
@@ -572,7 +577,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | `calidad` | `npm ci` → ESLint → `deno check` → Vitest → `deno test` (unitarias) → `npm run build` | Fase 0 |
 | `seguridad` | gitleaks → `npm audit --omit=dev --audit-level=high` | Fase 0 |
 | `bd` | `supabase start` → `supabase db reset` (aplica migraciones y semilla desde cero) → `supabase test db` (pgTAP) | Fase 1 |
-| `integracion` | `supabase functions serve` → pruebas de integración y `tests/seguridad` contra el entorno local | Fase 3 |
+| `integracion` | `supabase start` → `supabase functions serve` + `scripts/mp-simulado.mjs` → `node --test tests/seguridad` contra el entorno local | Fase 3 (activo desde el 14 nov) |
 | `e2e` | Playwright (solo en PR a `main`, por duración) | Fase 8 |
 
 - En el CI, Mercado Pago, Envia, ML y TikTok se **simulan**: las pruebas firman sus propios webhooks con un secreto de prueba. Los sandboxes reales se usan en las pruebas manuales, para que el CI no falle por caídas ajenas.
@@ -602,6 +607,8 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 - **Tokens de ML/TikTok caducan:** refresco automático + alerta.
 - **Límite de correos:** 100/día en Resend gratis [18].
 - **Sin staging después del lanzamiento:** en Free solo hay 2 proyectos (JM y AGO). Los cambios posteriores se prueban en local con el CI; es una razón más para pasar a Pro cuando haya más clientas.
+- ⚠️ **IP de la clienta en las funciones:** `limite.ts` la toma de `cf-connecting-ip` o `x-forwarded-for`. Hay reportes de que en Supabase `x-forwarded-for` se puede falsificar [38]; si es así, los límites **por IP** se saltan (los límites por teléfono, por folio y Turnstile siguen protegiendo). Verificar en el proyecto de staging qué cabecera pone la plataforma y ajustar `ipCliente` antes del lanzamiento.
+- ⚠️ **Pedidos de invitada ligados por teléfono o correo sin verificar:** `crear_pedido` liga el pedido a la `clienta` con el mismo teléfono (o correo). Hoy solo lo ve el panel. En la **Fase 7**, la clienta con cuenta debe ver únicamente los pedidos asociados por su correo **verificado** con el código, nunca por ese ligado automático; si no, alguien podría ver pedidos ajenos.
 - **Fiscal:** en 2026 las plataformas retienen a personas físicas 2.5% de ISR y, sin RFC válido, el 100% del IVA [14]. ⚠️ Que la clienta lo confirme con su contador. (No somos asesores fiscales.)
 - ⚠️ **Regulación sanitaria:** Cofepris publica alertas de lentes de contacto bajo la categoría de dispositivos médicos, y en una de mayo de 2024 señaló una marca por no tener registro sanitario [37]. Conviene que la clienta confirme que sus productos lo tienen antes de lanzar una tienda propia. (No somos asesores legales; es una pregunta para ella y su asesor.)
 - ⚠️ **Graduación como dato personal:** una graduación ligada a una persona puede considerarse dato de salud. Se valida con un asesor al redactar el aviso de privacidad (Fase 9).
@@ -619,7 +626,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | D1 | Repo público o privado (§0.3) | **Decidido: privado** (11 nov) | — |
 | D2 | ¿Se acepta efectivo (OXXO) y SPEI dentro de Mercado Pago? Obliga a apartar la pieza hasta 3 días [24] | **Decidido: tarjeta y SPEI, sin OXXO** (11 nov) | — |
 | D3 | Vigencia de la reserva en transferencia directa | **Decidido: 24 h** (11 nov; editable en `config_tienda`) | — |
-| D4 | ¿HummingX conserva una cuenta de administración con MFA tras la entrega (soporte y recuperación)? ¿A nombre de quién quedan Supabase y Cloudflare? | Sí, una cuenta; infraestructura a nombre de HummingX mientras exista la anualidad | Fase 2 |
+| D4 | ¿HummingX conserva una cuenta de administración con MFA tras la entrega (soporte y recuperación)? ¿A nombre de quién quedan Supabase y Cloudflare? | **Decidido: sí, una cuenta de HummingX; la infraestructura queda a nombre de HummingX** (14 nov) | — |
 | D5 | Compra como invitada (sin cuenta) | **Decidido: sí** (11 nov) | — |
 | D6 | Plan de Supabase al lanzar (§2.2) | Free con respaldo propio | Fase 9 |
 
@@ -649,6 +656,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | 8 nov 2026 | **Backend en Supabase** (Edge Functions + Cron) en lugar de Cloudflare Functions; Cloudflare solo para frontend y R2. **Ramas:** `main` = demo congelada hasta el lanzamiento, `develop` = proyecto nuevo. La demo pasa a Cloudflare y se borra Vercel en la Fase 0. |
 | 8 nov 2026 | **Ramas finales:** `demo` (+ tag `demo-v1`) guarda la demo congelada; `main` = proyecto real; `fase/*` → PR a `main`. Vercel solo se **desconecta** (el link de la clienta sigue mostrando la demo). Se trabaja en local. Nuevos: `README.md` (cómo empezar) y `docs/FRONTEND.md` (la demo es punto de partida, no diseño cerrado). |
 | 10 nov 2026 | **v2 · Revisión de seguridad y pagos.** Detalle abajo. |
+| 14 nov 2026 | **v2.5 · Revisión de la Fase 3.** Rama `fase/3-pagos`. Nueva migración `20261114000100_devoluciones.sql`: el reembolso o contracargo de un pedido que no salió devuelve el stock solo; si ya salió, la dueña lo confirma (acción `devolver` en `panel-pedidos` y botón en el panel); trigger que impide cambiar `pedidos.estado` fuera de `cambiar_estado_pedido`. `crear_pedido` serializa por clave de idempotencia (dos toques **simultáneos** daban 500 por la llave única; lo encontró la prueba nueva). Webhook de MP: clave del aviso sin `x-request-id`. CI: trabajo `integracion` con `tests/seguridad/fase3.test.mjs` (Edge Functions reales, MP simulado, panel con TOTP real). 20 pruebas pgTAP y 2 de Deno nuevas. D4 decidida. Las pruebas de Playwright citadas en la v2.4 no estaban en el repo; las sustituye el trabajo `integracion`. |
 | 11 nov 2026 | **v2.4 · Fase 3 (código).** Rama `fase/3-pagos`. SQL: `config_tienda` y `tarifas_entrega` (envío siempre en servidor), máquina de estados (`cambiar_estado_pedido`), `crear_pedido` (idempotencia, topes, precios de la BD, `total_cambio`), `registrar_pago_mp` (monto y moneda, SPEI pendiente extiende la reserva, pago tardío → `pagado_sin_stock`, reembolso, contracargo → "no entregar"), transferencia (aviso y validación), rastreo sin datos personales, alertas e idempotencia de webhooks; 44 pruebas pgTAP nuevas. Edge Functions: `pedidos-crear`, `webhook-mercadopago`, `pedidos-rastrear`, `comprobantes-subir`, `panel-pedidos` y alertas por correo en `cron-conciliar`; 15 pruebas Deno con firma HMAC real. Frontend: caja como invitada con Turnstile, página del pedido (seguimiento, datos de transferencia, comprobante), acciones y alertas en el panel, CSP estricta. **Cambios respecto al plan:** `panel-transferencias` y `pagos-reembolsar` se unieron en `panel-pedidos` (una función con permisos por acción); el comprobante se sube con URL firmada a R2 + verificación posterior (los modos de archivo esperan al bucket; mientras, WhatsApp). Verificado con un Mercado Pago simulado (`scripts/mp-simulado.mjs`, webhooks firmados): 33/33 en Playwright, cuadre ventas = movimientos. |
 | 11 nov 2026 | **v2.3 · Fase 2 (código).** Rama `fase/2-panel`: login con MFA (TOTP) y roles; MFA forzado en la BD (política restrictiva aal2 en 16 tablas) y en las funciones; permisos de escritura por columna solo para la dueña (`stock` nunca); auditoría por trigger; `panel-stock` (ajuste y Excel con vista previa, todo o nada), `panel-catalogo` y `r2-firmar`; cuentas por script (`cuentas-panel.mjs`). **Una sola implementación del guardado de catálogo:** `aplicar_catalogo` (SQL) la usan terminal, panel y semilla. Verificado con un mini-Supabase (GoTrue + PostgREST + funciones) y Playwright con códigos TOTP reales: 37/37. Hallazgo: aws4fetch no firma `Content-Type` por defecto; se activó `allHeaders`. |
 | 11 nov 2026 | **v2.2 · Fase 1 (código).** Rama `fase/1-catalogo`: modelo completo de §3.2 con RLS, vista `catalogo_publico`, 4 funciones de stock + `liberar_reservas_vencidas`, 47 pruebas pgTAP nuevas, prueba de concurrencia real, importador (Excel/CSV + fotos WebP → SQL idempotente), plantilla y semilla, y la tienda leyendo de la BD con caché. Cambios respecto al plan: **tabla `tonos`** (ver §3.2); `stock` protegido quitando todo permiso de tabla en lugar de permisos por columna; la ficha deja de permitir graduación distinta por ojo (se vende por par; si cada ojo es distinto, WhatsApp). |
@@ -719,3 +727,4 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 35. Cloudflare — Pages: Serving Pages (comportamiento de SPA sin `404.html`): https://developers.cloudflare.com/pages/configuration/serving-pages/
 36. Atémpora — Comisiones de Mercado Pago México 2026 (fuente secundaria; confirmar en [8]): https://atempora.studio/blog/comisiones-mercado-pago-2026
 37. Cofepris — Alerta sanitaria de dispositivos médicos, lentes de contacto Freshcolors Colorblends (22 may 2024): https://www.gob.mx/cms/uploads/attachment/file/917365/Alerta_Sanitaria_Freshcolors_22052024.pdf
+38. Supabase Discussions — ¿Es seguro `x-forwarded-for`? (se puede falsificar): https://github.com/orgs/supabase/discussions/34647
