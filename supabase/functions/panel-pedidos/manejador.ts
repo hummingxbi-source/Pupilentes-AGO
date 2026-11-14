@@ -6,6 +6,9 @@
 //   { accion: "cancelar", pedido, nota? }                          dueña (solo pedidos sin pagar)
 //   { accion: "reembolsar", pedido, nota? }                        dueña. MP: reembolso por la API.
 //                                                                  Transferencia: se registra (la dueña devuelve a mano).
+//                                                                  Si el pedido no había salido, el stock regresa solo.
+//   { accion: "devolver", pedido, nota? }                          dueña. Pedido ya enviado y reembolsado/en contracargo:
+//                                                                  confirma que el producto regresó vendible (§3.3 E).
 //   { accion: "comprobante", pedido }                              URL de 5 min al archivo privado en R2
 
 import { clienteServicio, exigirPanel, type RolPanel } from '../_shared/auth.ts';
@@ -23,10 +26,11 @@ const Cuerpo = z.discriminatedUnion('accion', [
   z.object({ accion: z.literal('estado'), pedido: z.string().uuid(), nuevo: z.enum(['preparando', 'enviado', 'entregado']), nota: Nota }),
   z.object({ accion: z.literal('cancelar'), pedido: z.string().uuid(), nota: Nota }),
   z.object({ accion: z.literal('reembolsar'), pedido: z.string().uuid(), nota: Nota }),
+  z.object({ accion: z.literal('devolver'), pedido: z.string().uuid(), nota: Nota }),
   z.object({ accion: z.literal('comprobante'), pedido: z.string().uuid() }),
 ]);
 const ROLES: Record<z.infer<typeof Cuerpo>['accion'], RolPanel[]> = {
-  validar_transferencia: ['duena'], estado: ['duena', 'ayudante'], cancelar: ['duena'], reembolsar: ['duena'], comprobante: ['duena', 'ayudante'],
+  validar_transferencia: ['duena'], estado: ['duena', 'ayudante'], cancelar: ['duena'], reembolsar: ['duena'], devolver: ['duena'], comprobante: ['duena', 'ayudante'],
 };
 const ERRORES: Record<string, [number, string]> = {
   pedido_no_existe: [404, 'No encontramos ese pedido.'],
@@ -34,6 +38,9 @@ const ERRORES: Record<string, [number, string]> = {
   pedido_no_cancelable: [409, 'Solo se cancelan pedidos que aún no se pagan. Si ya se pagó, reembolsa.'],
   transicion_invalida: [409, 'Ese cambio de estado no es posible desde el estado actual.'],
   sin_stock: [409, 'Ya no hay stock para confirmar este pedido.'],
+  pedido_no_devolvible: [409, 'Solo se regresa al inventario un pedido reembolsado o en contracargo.'],
+  sin_venta_que_devolver: [409, 'Este pedido nunca descontó stock (se pagó sin stock), no hay nada que regresar.'],
+  ya_devuelto: [409, 'Este pedido ya se regresó al inventario.'],
 };
 
 export interface Dependencias {
@@ -97,7 +104,13 @@ export async function manejar(req: Request, d: Dependencias = dependencias()): P
         }
         const { data, error } = await d.admin.rpc('panel_registrar_reembolso', { p_pedido: c.pedido, p_usuario: usuario.id, p_id_reembolso: idReembolso, p_nota: c.nota ?? null });
         if (error) errorDeBd(error, ERRORES, 'panel_registrar_reembolso');
-        return json({ estado: data, reembolso: idReembolso, manual: idReembolso === 'manual' }, 200, enc);
+        const devuelto = data === 'reembolsado_stock_devuelto';
+        return json({ estado: 'reembolsado', stock_devuelto: devuelto, reembolso: idReembolso, manual: idReembolso === 'manual' }, 200, enc);
+      }
+      case 'devolver': {
+        const { data, error } = await d.admin.rpc('panel_registrar_devolucion', { p_pedido: c.pedido, p_usuario: usuario.id, p_nota: c.nota ?? null });
+        if (error) errorDeBd(error, ERRORES, 'panel_registrar_devolucion');
+        return json({ estado: ped.estado, renglones_devueltos: data }, 200, enc);
       }
       case 'comprobante': {
         const { data: pago } = await d.admin.from('pagos').select('comprobante_clave').eq('pedido_id', c.pedido)

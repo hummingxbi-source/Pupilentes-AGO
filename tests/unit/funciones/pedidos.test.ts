@@ -2,7 +2,7 @@
 // la firma del webhook se calcula de verdad (HMAC-SHA256) como lo hace Mercado Pago.
 import assert from 'node:assert/strict';
 import { manejar as crear, type Dependencias as DepCrear } from '../../../supabase/functions/pedidos-crear/manejador.ts';
-import { manejar as webhook } from '../../../supabase/functions/webhook-mercadopago/manejador.ts';
+import { claveEvento, manejar as webhook } from '../../../supabase/functions/webhook-mercadopago/manejador.ts';
 import { manejar as rastrear } from '../../../supabase/functions/pedidos-rastrear/manejador.ts';
 import { manejar as comprobantes } from '../../../supabase/functions/comprobantes-subir/manejador.ts';
 import { manejar as panelPedidos } from '../../../supabase/functions/panel-pedidos/manejador.ts';
@@ -239,4 +239,32 @@ Deno.test('panel-pedidos: "no entregar" bloquea enviar; reembolso MP usa la API 
   // Pedido sin pagar: no se reembolsa
   const np = bd({ filas: { pedidos: { id: PID, estado: 'pendiente_pago', metodo_pago: 'mercadopago' } } });
   assert.equal((await panelPedidos(post({ accion: 'reembolsar', pedido: PID }, auth), { admin: np.admin, mp, r2: null })).status, 409);
+});
+
+Deno.test('panel-pedidos: regresar piezas al inventario es solo de la dueña y avisa si el reembolso ya las devolvió', async () => {
+  const filas = { pedidos: { id: PID, folio: 'AGO-2', estado: 'reembolsado', metodo_pago: 'transferencia', no_entregar: false, total: 799 } };
+  const ay = bd({ rol: 'ayudante', filas });
+  assert.equal((await panelPedidos(post({ accion: 'devolver', pedido: PID }, auth), { admin: ay.admin, mp: null, r2: null })).status, 403);
+  const du = bd({ filas, rpc: { panel_registrar_devolucion: () => 1 } });
+  const r = await panelPedidos(post({ accion: 'devolver', pedido: PID, nota: 'regresó sellado' }, auth), { admin: du.admin, mp: null, r2: null });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).renglones_devueltos, 1);
+  assert.equal(du.hizo('panel_registrar_devolucion')[0].args.p_usuario, 'u-1');
+  const ya = bd({ filas, rpc: { panel_registrar_devolucion: () => ({ data: null, error: { message: 'ya_devuelto', code: 'P0001' } }) } });
+  assert.equal((await panelPedidos(post({ accion: 'devolver', pedido: PID }, auth), { admin: ya.admin, mp: null, r2: null })).status, 409);
+  // Reembolso de un pedido que no había salido: la respuesta dice que el stock regresó
+  const re = bd({ filas: { pedidos: { ...filas.pedidos, estado: 'preparando' } }, rpc: { panel_registrar_reembolso: () => 'reembolsado_stock_devuelto' } });
+  const rr = await (await panelPedidos(post({ accion: 'reembolsar', pedido: PID }, auth), { admin: re.admin, mp: null, r2: null })).json();
+  assert.deepEqual([rr.estado, rr.stock_devuelto, rr.manual], ['reembolsado', true, true]);
+});
+
+Deno.test('webhook-mercadopago: la clave del aviso es la misma en reintentos y distinta entre avisos del mismo pago', () => {
+  const pendiente = { id: 111, action: 'payment.created', date_created: '2026-11-14T10:00:00Z' };
+  const aprobado = { id: 222, action: 'payment.updated', date_created: '2026-11-14T10:05:00Z' };
+  assert.equal(claveEvento(pendiente, '123', 'req-a'), claveEvento(pendiente, '123', 'req-b'), 'reintento con otro x-request-id = mismo evento');
+  assert.notEqual(claveEvento(pendiente, '123', 'req-a'), claveEvento(aprobado, '123', 'req-a'), 'pendiente y aprobado son eventos distintos');
+  // Aunque MP repitiera el id del cuerpo (= data.id), action y date_created los separan
+  assert.notEqual(claveEvento({ ...pendiente, id: 123 }, '123', null), claveEvento({ ...aprobado, id: 123 }, '123', null));
+  // Sin id en el cuerpo: cada entrega es un evento nuevo (nunca se descarta un aviso)
+  assert.notEqual(claveEvento({}, '123', 'req-a'), claveEvento({}, '123', 'req-b'));
 });

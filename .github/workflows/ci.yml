@@ -89,5 +89,62 @@ jobs:
       - name: Concurrencia real (última pieza en paralelo)
         run: npm run test:concurrencia
 
-  # integracion: se activa en la Fase 3 (supabase functions serve + tests/integracion y tests/seguridad).
+  integracion:
+    name: integracion (Edge Functions reales + tests/seguridad)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      # Secretos SOLO de prueba (§6.1 regla 16): Mercado Pago es el simulador local y Turnstile usa
+      # la llave de prueba de Cloudflare que siempre aprueba [Cloudflare: Turnstile testing].
+      MP_NOTIFICATION_URL: http://127.0.0.1:55321/functions/v1/webhook-mercadopago
+      CRON_SECRET: cron-local-solo-desarrollo
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with: { version: '2.122.1' }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - name: Levantar Supabase (BD, Auth, API y funciones)
+        run: supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
+      - name: Secrets de las funciones (solo prueba)
+        run: |
+          MP_WEBHOOK_SECRET=$(openssl rand -hex 24)   # se genera en cada corrida
+          echo "MP_WEBHOOK_SECRET=$MP_WEBHOOK_SECRET" >> "$GITHUB_ENV"
+          cat > "$RUNNER_TEMP/funciones.env" <<EOF
+          ORIGENES_PERMITIDOS=http://localhost:5173
+          CRON_SECRET=$CRON_SECRET
+          TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+          SITIO_URL=http://localhost:5173
+          MP_ACCESS_TOKEN=TEST-ci
+          MP_WEBHOOK_SECRET=$MP_WEBHOOK_SECRET
+          MP_NOTIFICATION_URL=$MP_NOTIFICATION_URL
+          MP_API_URL=http://host.docker.internal:8090
+          EOF
+      - name: Mercado Pago simulado
+        run: |
+          MP_SIM_HOST=0.0.0.0 nohup node scripts/mp-simulado.mjs > "$RUNNER_TEMP/mp.log" 2>&1 &
+          timeout 20 sh -c 'until curl -s -o /dev/null http://127.0.0.1:8090/; do sleep 1; done'
+      - name: Servir las funciones
+        run: |
+          nohup supabase functions serve --env-file "$RUNNER_TEMP/funciones.env" > "$RUNNER_TEMP/funciones.log" 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fs http://127.0.0.1:55321/functions/v1/salud > /dev/null; then echo "funciones listas"; exit 0; fi
+            sleep 2
+          done
+          echo "las funciones no arrancaron"; cat "$RUNNER_TEMP/funciones.log"; exit 1
+      - name: El contenedor de funciones alcanza al simulador
+        run: docker exec "$(docker ps --filter name=edge_runtime -q | head -1)" sh -c 'getent hosts host.docker.internal || true'
+      - name: tests/seguridad (pedidos, pagos, rastreo, panel con MFA)
+        run: |
+          eval "$(supabase status -o env | sed 's/^/export /')"
+          export SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY:-$ANON_KEY}" SUPABASE_SECRET_KEY="${SECRET_KEY:-$SERVICE_ROLE_KEY}"
+          node --test --test-concurrency=1 tests/seguridad/
+      - name: Registros si algo falló
+        if: failure()
+        run: |
+          echo "::group::funciones"; tail -n 200 "$RUNNER_TEMP/funciones.log"; echo "::endgroup::"
+          echo "::group::mp simulado"; tail -n 100 "$RUNNER_TEMP/mp.log"; echo "::endgroup::"
+
   # e2e: se activa en la Fase 8 (Playwright, solo en PR a main).

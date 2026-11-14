@@ -6,8 +6,9 @@
 // Uso:
 //   MP_WEBHOOK_SECRET=<el mismo de supabase/functions/.env> \
 //   MP_NOTIFICATION_URL=http://127.0.0.1:54321/functions/v1/webhook-mercadopago \
-//   node scripts/mp-simulado.mjs            (puerto 8090, o MP_SIM_PUERTO)
-// y en supabase/functions/.env:  MP_API_URL=http://127.0.0.1:8090  MP_ACCESS_TOKEN=TEST-local
+//   node scripts/mp-simulado.mjs            (puerto 8090, o MP_SIM_PUERTO; escucha en MP_SIM_HOST, por defecto 127.0.0.1)
+// y en supabase/functions/.env:  MP_API_URL=http://host.docker.internal:8090  MP_ACCESS_TOKEN=TEST-local
+// (las funciones corren dentro de Docker: para alcanzar el simulador usa MP_SIM_HOST=0.0.0.0)
 //
 // Al pagar, la página "checkout" deja elegir: aprobado, rechazado o SPEI pendiente.
 // NUNCA usar en producción: no cobra nada, solo sirve para probar el flujo.
@@ -15,6 +16,7 @@ import { createServer } from 'node:http';
 import { createHmac, randomUUID } from 'node:crypto';
 
 const PUERTO = Number(process.env.MP_SIM_PUERTO ?? 8090);
+const HOST = process.env.MP_SIM_HOST ?? '127.0.0.1';
 const SECRETO = process.env.MP_WEBHOOK_SECRET;
 const AVISO = process.env.MP_NOTIFICATION_URL;   // si falta, se usa el notification_url de la preferencia
 if (!SECRETO) { console.error('Falta MP_WEBHOOK_SECRET'); process.exit(1); }
@@ -37,7 +39,8 @@ async function avisar(pago, url) {
   try {
     const r = await fetch(destino, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-signature': `ts=${ts},v1=${v1}`, 'x-request-id': rid },
-      body: JSON.stringify({ id: Date.now(), type: 'payment', action: 'payment.updated', live_mode: false, data: { id } }),
+      // Como MP: id y date_created propios del evento (iguales si se reintentara el mismo aviso)
+      body: JSON.stringify({ id: Date.now(), type: 'payment', action: 'payment.updated', live_mode: false, date_created: new Date().toISOString(), data: { id } }),
     });
     console.log(`aviso pago ${id} (${pago.status}) → ${r.status} ${await r.text()}`);
   } catch (e) { console.error('aviso falló', e.message); }
@@ -87,12 +90,16 @@ createServer(async (req, res) => {
       const regreso = `${p.back_urls[f.status === 'approved' ? 'success' : f.status === 'pending' ? 'pending' : 'failure']}?payment_id=${pago.id}&status=${pago.status}&external_reference=${p.external_reference}`;
       res.writeHead(303, { Location: regreso }); return res.end();
     }
-    // Atajo para pruebas: cambiar el estado de un pago y mandar el aviso (p. ej. SPEI acreditado, contracargo)
+    // Atajo para pruebas: cambiar el estado de un pago y mandar el aviso (p. ej. SPEI acreditado, contracargo).
+    // Para probar ataques también acepta transaction_amount y external_reference distintos a los del pedido.
     let m = /^\/simular\/pagos\/(\d+)$/.exec(url.pathname);
     if (req.method === 'POST' && m) {
       const pago = pagos.get(m[1]); if (!pago) return enviar(res, 404, { message: 'not found' });
-      const status = (await leer(req)).status ?? 'approved';
+      const f = await leer(req);
+      const status = f.status ?? 'approved';
       Object.assign(pago, { status, status_detail: status === 'approved' ? 'accredited' : status });
+      if (f.transaction_amount != null) pago.transaction_amount = Number(f.transaction_amount);
+      if (f.external_reference) pago.external_reference = String(f.external_reference);
       await avisar(pago, pago.notification_url);
       return enviar(res, 200, pago);
     }
@@ -113,4 +120,4 @@ createServer(async (req, res) => {
     }
     enviar(res, 404, { message: 'not found' });
   } catch (e) { enviar(res, 500, { message: e.message }); }
-}).listen(PUERTO, '127.0.0.1', () => console.log(`Mercado Pago simulado en http://127.0.0.1:${PUERTO}`));
+}).listen(PUERTO, HOST, () => console.log(`Mercado Pago simulado en http://${HOST}:${PUERTO}`));

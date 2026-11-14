@@ -19,6 +19,20 @@ const Aviso = z.object({
   data: z.object({ id: z.union([z.string(), z.number()]) }).partial().optional(),
 }).passthrough();
 
+/**
+ * Clave de idempotencia de un aviso. Debe ser IGUAL en los reintentos del mismo aviso (para contar
+ * intentos y alertar al 3.º fallo) y DISTINTA entre avisos del mismo pago (pendiente → aprobado),
+ * o se perdería el aviso de aprobado. MP manda en el cuerpo id, action y date_created del evento y
+ * marca los reintentos con X-Retry [23]. Si el cuerpo no trae id, se usa x-request-id (cada entrega
+ * cuenta como evento nuevo; no se pierde nada, solo no se cuentan los reintentos).
+ * ⚠️ Confirmar con el sandbox real que id/date_created no cambian entre reintentos.
+ */
+export function claveEvento(aviso: { id?: string | number; action?: string; date_created?: unknown }, dataId: string, requestId: string | null): string {
+  const fecha = typeof aviso.date_created === 'string' ? aviso.date_created.slice(0, 40) : '';
+  const base = aviso.id != null ? `${aviso.id}:${aviso.action ?? ''}:${fecha}` : `req:${requestId ?? crypto.randomUUID()}`;
+  return `${dataId}:${base}`.slice(0, 200);
+}
+
 export async function manejar(
   req: Request,
   admin: SupabaseClient = clienteServicio(),
@@ -38,7 +52,7 @@ export async function manejar(
     if (tipo !== 'payment' || !dataId) return json({ ok: true, ignorado: tipo ?? 'sin_tipo' });   // merchant_order, etc.
     if (!/^\d{1,30}$/.test(dataId)) throw new ErrorHttp(400, 'id_invalido');
 
-    const idEvento = `${aviso.id ?? 'sin-id'}:${dataId}:${req.headers.get('x-request-id') ?? ''}`.slice(0, 200);
+    const idEvento = claveEvento(aviso, dataId, req.headers.get('x-request-id'));
     const { data: nuevo, error: e1 } = await admin.rpc('registrar_evento', { p_proveedor: 'mercadopago', p_id_evento: idEvento, p_payload: aviso });
     if (e1) throw new Error('registrar_evento: ' + e1.message);
     if (nuevo === false) return json({ ok: true, repetido: true });

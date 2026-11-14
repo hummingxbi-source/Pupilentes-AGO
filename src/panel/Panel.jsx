@@ -226,7 +226,8 @@ export function OrderModal({ p, onClose, onCambio }) {
     try {
       const r = await accionPedido({ pedido: p.id, ...cuerpo, ...(nota.trim() && cuerpo.accion !== 'comprobante' ? { nota: nota.trim() } : {}) });
       if (cuerpo.accion === 'comprobante') { window.open(r.url, '_blank', 'noopener'); return; }
-      useStore.getState().notificar(r.manual ? 'Registrado. Devuelve la transferencia desde tu banco.' : 'Listo');
+      const stock = r.stock_devuelto ? ' Las piezas regresaron al inventario.' : '';
+      useStore.getState().notificar((r.manual ? 'Registrado. Devuelve la transferencia desde tu banco.' : 'Listo.') + stock);
       onCambio?.(); onClose();
     } catch (e) { setError(e.message); }
     finally { setOcupado(''); }
@@ -273,11 +274,14 @@ export function OrderModal({ p, onClose, onCambio }) {
             {['pagado', 'preparando'].includes(e) && !p.no_entregar && <B cuerpo={{ accion: 'estado', nuevo: 'entregado' }} etiqueta="Marcar entregado" clase="btn sm ghost" />}
             {e === 'enviado' && <B cuerpo={{ accion: 'estado', nuevo: 'entregado' }} etiqueta="Marcar entregado" />}
             {['pendiente_pago', 'pendiente_validacion'].includes(e) && duena && <B cuerpo={{ accion: 'cancelar' }} etiqueta="Cancelar pedido" clase="btn sm ghost" peligro />}
-            {pagado && duena && <B cuerpo={{ accion: 'reembolsar' }} etiqueta={p.metodo_pago === 'mercadopago' ? 'Reembolsar en Mercado Pago' : 'Registrar devolución'} clase="btn sm ghost" peligro />}
+            {pagado && duena && <B cuerpo={{ accion: 'reembolsar' }} etiqueta={p.metodo_pago === 'mercadopago' ? 'Reembolsar en Mercado Pago' : 'Registrar reembolso'} clase="btn sm ghost" peligro />}
+            {['reembolsado', 'contracargo'].includes(e) && duena && <B cuerpo={{ accion: 'devolver' }} etiqueta="Regresar piezas al inventario" clase="btn sm ghost" peligro />}
           </div>
           {(duena || e === 'pagado' || e === 'preparando') && <div className="field" style={{ marginTop: 10 }}><label htmlFor="om-nota">Nota (opcional, queda en la bitácora)</label><input id="om-nota" className="inp" maxLength={300} value={nota} onChange={(ev) => setNota(ev.target.value)} /></div>}
           {confirmar && <div className="om-confirma" role="alertdialog" aria-label="Confirmar">
-            <p>¿Seguro que quieres <b>{confirmar.etiqueta.toLowerCase()}</b>? {confirmar.cuerpo.accion === 'reembolsar' && p.metodo_pago === 'mercadopago' ? `Se devuelven ${mxn(p.total)} a la clienta.` : ''}</p>
+            <p>¿Seguro que quieres <b>{confirmar.etiqueta.toLowerCase()}</b>? {confirmar.cuerpo.accion === 'reembolsar' && p.metodo_pago === 'mercadopago' ? `Se devuelven ${mxn(p.total)} a la clienta.` : ''}
+              {confirmar.cuerpo.accion === 'reembolsar' && ['pagado', 'preparando'].includes(e) ? ' Como el pedido no ha salido, las piezas regresan solas al inventario.' : ''}
+              {confirmar.cuerpo.accion === 'devolver' ? ' Hazlo solo si el producto ya regresó contigo y se puede volver a vender.' : ''}</p>
             <div style={{ display: 'flex', gap: 8 }}><button className="btn sm" onClick={() => hacer(confirmar.cuerpo, confirmar.etiqueta)}>Sí, {confirmar.etiqueta.toLowerCase()}</button><button className="btn sm ghost" onClick={() => setConfirmar(null)}>No</button></div>
           </div>}
           {error && <p className="err" role="alert">{error}</p>}

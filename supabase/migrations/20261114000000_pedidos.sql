@@ -168,6 +168,9 @@ begin
   select * into c from public.config_tienda;
 
   if v_clave is null or length(v_clave) not between 16 and 100 then raise exception 'idempotencia_invalida' using errcode = 'P0001'; end if;
+  -- Dos peticiones simultáneas con la misma clave: la segunda espera a que la primera termine
+  -- y entonces la encuentra abajo (sin esto chocaba con la llave única y respondía 500).
+  perform pg_advisory_xact_lock(hashtextextended('crear_pedido:' || v_clave, 0));
   -- Doble toque / reintento de red: devuelve el mismo pedido
   select * into v_ped from public.pedidos where clave_idempotencia = v_clave;
   if found then
