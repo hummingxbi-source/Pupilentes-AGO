@@ -76,6 +76,8 @@ export const aplicarCatalogo = (filas) => llamarFuncion('panel-catalogo', { cuer
 // --- Pedidos y alertas (Fase 3) ----------------------------------------------------
 /** Acciones sobre un pedido: validar_transferencia, estado, cancelar, reembolsar, comprobante (panel-pedidos). */
 export const accionPedido = (cuerpo) => llamarFuncion('panel-pedidos', { cuerpo });
+/** Mercado Libre (panel-ml): estado, conectar, callback, publicaciones, vincular, desvincular, sincronizacion, desconectar. */
+export const accionML = (cuerpo) => llamarFuncion('panel-ml', { cuerpo });
 /** Guía de paquetería (envios-guia): generar | etiqueta. */
 export const accionGuia = (accion, pedido) => llamarFuncion('envios-guia', { cuerpo: { accion, pedido } });
 export async function cargarAlertas() { return exigir(await supabase.rpc('panel_alertas')); }
@@ -90,6 +92,9 @@ export const ALERTAS = {
   envio_incidencia: 'Problema con un envío: devolución, intento fallido o extravío',
   envio_no_entregar: 'Un pedido marcado "no entregar" va en camino: llama a la paquetería',
   envio_desconocido: 'Llegó un aviso de Envia de una guía que no es nuestra',
+  ml_token: 'Mercado Libre se desconectó: vuelve a conectar la cuenta en Canales',
+  ml_sin_vincular: 'Venta en Mercado Libre de una publicación sin vincular: vincúlala en Canales y ajusta el stock',
+  ml_sync_fallido: 'No se pudo actualizar el stock en Mercado Libre (revisa Canales)',
   cron_sin_correr: 'Las tareas automáticas no corren desde hace más de 30 min',
 };
 

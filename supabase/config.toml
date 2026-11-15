@@ -458,3 +458,9 @@ verify_jwt = false
 [functions.envios-guia]
 [functions.webhook-envia]
 verify_jwt = false
+
+# Fase 5 · Mercado Libre. panel-ml la llama el panel (MFA); webhook-mercadolibre lo llama ML (sin firma:
+# se valida application_id/user_id y se consulta la orden a la API).
+[functions.panel-ml]
+[functions.webhook-mercadolibre]
+verify_jwt = false

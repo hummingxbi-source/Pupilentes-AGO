@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Route, Routes, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { Sun, Truck, Boxes, LayoutGrid, Users, ArrowUpRight, Copy, Search, X, LogOut } from 'lucide-react';
+import { Sun, Truck, Boxes, LayoutGrid, Users, Share2, ArrowUpRight, Copy, Search, X, LogOut } from 'lucide-react';
 import { mxn } from '../lib/catalog';
 import { NEUTRO } from '../lib/tienda';
 import { useStore } from '../lib/store';
@@ -11,6 +11,7 @@ import Acceso from './Acceso';
 import { useSesion, iniciarSesionPanel } from './sesion';
 import { useConsulta, cargarPedidos, cargarVariantes, cargarAlertas, atenderAlerta, accionPedido, accionGuia, agrupar, ALERTAS, ESTADOS_PEDIDO } from './datos';
 import { Inventario, Catalogo, Clientas } from './Gestion';
+import { Canales } from './Canales';
 
 export const waTo = (tel, txt) => `https://wa.me/52${String(tel).replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(txt)}`;
 const nombreDe = (p) => p.contacto?.nombre || 'Sin nombre';
@@ -26,6 +27,7 @@ export default function Panel() {
     ['inventario', 'Inventario', Boxes],
     ['catalogo', 'Catálogo', LayoutGrid],
     ['clientas', 'Clientas', Users],
+    ['canales', 'Canales', Share2],
   ];
   return (
     <div className="pn">
@@ -46,6 +48,7 @@ export default function Panel() {
           <Route path="inventario" element={<Inventario />} />
           <Route path="catalogo" element={<Catalogo />} />
           <Route path="clientas" element={<Clientas />} />
+          <Route path="canales" element={<Canales />} />
         </Routes>
       </main>
     </div>
