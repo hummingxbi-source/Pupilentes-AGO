@@ -2,7 +2,7 @@
 
 > Documento vivo. Es la guía para que cualquier persona del equipo (con Claude) desarrolle el proyecto real, fase por fase.
 > **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
-> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v2.6) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local (§5, Fase 2). Fase 3 — código terminado** (rama `fase/3-pagos`, PR #13) con pruebas de integración y seguridad en el CI; falta probar con credenciales de prueba reales de MP. **Fase 4 — código en `fase/4-envios`** (sale de `fase/3-pagos`); falta la cuenta de Envia y los datos reales de envío. Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
+> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v2.7) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local (§5, Fase 2). Fase 3 — código terminado** (rama `fase/3-pagos`, PR #13) con pruebas de integración y seguridad en el CI; falta probar con credenciales de prueba reales de MP. **Fase 4 — código en `fase/4-envios`** (sale de `fase/3-pagos`); falta la cuenta de Envia y los datos reales de envío. **Fase 5 — código en `fase/5-mercadolibre`** (sale de `fase/4-envios`); falta la app de ML de la clienta. Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
 >
 > Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
 
@@ -439,13 +439,18 @@ Reglas del flujo:
 **Terminado cuando:** un envío real llega con guía generada desde el panel.
 
 ### Fase 5 · Mercado Libre
-- [ ] OAuth con la cuenta de la clienta; tokens en **Vault** con refresco automático y alerta si falla.
-- [ ] Pantalla para **vincular publicaciones ↔ variantes** (varias por variante).
-- [ ] `webhook-mercadolibre` (respuesta en menos de 500 ms [33]) → `mover_stock`; empuje del disponible a ML vía `cola_sync`; conciliación y `missed_feeds` en `cron-conciliar`.
-- [ ] ⚠️ Confirmar si usa **Full** (bodega de ML): ese stock se maneja aparte.
+- [x] OAuth con la cuenta de la clienta; tokens en **Vault** con refresco automático y alerta si falla. *(14 nov. El access token dura 6 h y solo vale el último refresh token [39]: un solo proceso refresca a la vez (`ml_tomar_refresco`) y el cron lo renueva con 1 h de margen. `state` de un solo uso, ligado a la dueña y con 10 min de vida.)*
+- [x] Pantalla para **vincular publicaciones ↔ variantes** (varias por variante). *(Panel → Canales. Propone el SKU si la publicación de ML ya lo tiene.)*
+- [x] `webhook-mercadolibre` (respuesta en menos de 500 ms [33]) → `mover_stock`; empuje del disponible a ML vía `cola_sync`; conciliación en `cron-conciliar`. *(Cambio respecto al plan: en lugar de `missed_feeds`, el cron consulta las órdenes actualizadas en las últimas 48 h; cubre también avisos que ML nunca llegó a registrar, y registrar es idempotente. Al publicar un ítem con variaciones se mandan **todas** (las que no administramos, solo con su `id`), para no borrar ni modificar variaciones ajenas [40].)*
+- [x] **Full** soportado por publicación: el stock de Full lo administra ML y no se edita por API [41]; sus ventas no tocan nuestro inventario físico y nunca se les publica stock. ⚠️ Falta que la clienta confirme si usa Full.
+- [x] **Sincronización hacia ML apagada por defecto** (decisión de seguridad, 14 nov): las ventas de ML descuentan de la BD desde el día 1, pero nuestro stock solo se publica en ML cuando la dueña la enciende (con confirmación). Si no, el catálogo semilla sobrescribiría el stock real de sus publicaciones.
+- [ ] ⚠️ Colchón por canal (`config_tienda.ml_colchon`, hoy 0): lo decide la clienta (§8).
+- [ ] ⚠️ Venta cancelada en ML → el stock regresa. Se asume que la pieza no salió; confirmarlo con la clienta (si ya se envió, regresa por devolución de ML y habría que esperar a recibirla).
+- [ ] ⚠️ Si la cuenta de la clienta tiene **multiorigen** (varios depósitos), ML ignora `available_quantity` en `/items` y hay que usar `/user-products/{id}/stock` [42]. Verificarlo con su cuenta real.
+- [ ] App de desarrollador de ML con la cuenta de la clienta (T7), notificaciones `orders_v2` apuntando a `webhook-mercadolibre` y prueba manual. En local se usa `scripts/ml-simulado.mjs`.
 
 **Probar a mano:** una compra real barata en ML baja el stock en el panel y en las otras publicaciones; un ajuste en el panel cambia el stock en ML.
-**Automáticas:** evento duplicado → un descuento; evento con `user_id` o `application_id` ajenos → ignorado; webhook perdido → la conciliación lo recupera.
+**Automáticas:** evento duplicado → un descuento; evento con `user_id` o `application_id` ajenos → ignorado; webhook perdido → la conciliación lo recupera. *(14 nov: pgTAP `07_mercadolibre`, Deno `ml.test.ts` y `tests/seguridad/fase5.test.mjs` contra el simulador, incluida la prueba de que ninguna variación ajena se borra.)*
 **Terminado cuando:** una semana sin descuadres entre ML y la BD.
 
 ### Fase 6 · TikTok Shop
@@ -526,6 +531,8 @@ Reglas del flujo:
 | `panel-stock`, `panel-catalogo` | `duena` | Sesión válida + `aal2` + rol |
 | `panel-pedidos` | `duena` (validar, cancelar, reembolsar, regresar al inventario); `duena` o `ayudante` (avanzar entrega, ver comprobante) | Sesión válida + `aal2` + rol por acción |
 | `envios-guia`, `r2-firmar` | `duena` o `ayudante` | Sesión válida + `aal2` + rol |
+| `panel-ml` | `duena` (todo); `duena` o `ayudante` (ver estado) | Sesión válida + `aal2` + rol por acción |
+| `webhook-mercadolibre` | Mercado Libre | `application_id` y `user_id` propios + `_id` del aviso + consulta de la orden a la API (ML no firma) |
 | `webhook-envia` | Envia.com | Secreto en la URL (≥ 24 caracteres) + `X-Webhook-Id` + consulta del estado a la API |
 | `webhook-*` | El proveedor | Firma o secreto + idempotencia + consulta al proveedor |
 | `cron-conciliar` | Supabase Cron | Secreto de Vault en la cabecera |
@@ -659,6 +666,13 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 - [ ] Tarifas reales de DiDi por alcaldía y costo de "otra estación" de Metro. *Provisionales: las de la demo.*
 - [ ] Datos bancarios para transferencia (banco, CLABE, beneficiario) y número de WhatsApp de la tienda. *Provisional: CLABE en ceros.*
 
+**Mercado Libre (Fase 5, preguntas del 14 nov).**
+- [ ] ¿Usa Full (bodega de ML) en alguna publicación? El sistema ya lo distingue, pero hay que saberlo para vincular bien.
+- [ ] ¿Cuántos pares de colchón quiere dejar sin publicar en ML para evitar sobreventa? *Provisional: 0.*
+- [ ] Cuando un comprador cancela en ML, ¿la pieza ya había salido? *Hoy se asume que no y el stock regresa.*
+- [ ] ¿Su cuenta maneja varios depósitos (multiorigen)?
+- [ ] Crear la app de desarrollador con **su** cuenta de ML, o autorizar la nuestra (T7).
+
 ### 9.3 Trámites del equipo (no los puede hacer Claude)
 
 | # | Trámite | Para qué | Bloquea |
@@ -682,6 +696,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | 8 nov 2026 | **Backend en Supabase** (Edge Functions + Cron) en lugar de Cloudflare Functions; Cloudflare solo para frontend y R2. **Ramas:** `main` = demo congelada hasta el lanzamiento, `develop` = proyecto nuevo. La demo pasa a Cloudflare y se borra Vercel en la Fase 0. |
 | 8 nov 2026 | **Ramas finales:** `demo` (+ tag `demo-v1`) guarda la demo congelada; `main` = proyecto real; `fase/*` → PR a `main`. Vercel solo se **desconecta** (el link de la clienta sigue mostrando la demo). Se trabaja en local. Nuevos: `README.md` (cómo empezar) y `docs/FRONTEND.md` (la demo es punto de partida, no diseño cerrado). |
 | 10 nov 2026 | **v2 · Revisión de seguridad y pagos.** Detalle abajo. |
+| 14 nov 2026 | **v2.7 · Fase 5 (código, rama `fase/5-mercadolibre`, sale de `fase/4-envios`).** Migración `20261116000000_mercadolibre.sql`: tokens en Vault, `state` OAuth, concesión de refresco, `ml_registrar_orden`, vínculos, `ml_activar_sync` y cola de publicación con colchón y reintentos. Edge Functions `panel-ml` y `webhook-mercadolibre`; ML en `cron-conciliar`. Panel → Canales. `scripts/ml-simulado.mjs`. 27 pgTAP, 7 Deno y 7 de integración nuevas. Hallazgos del CI: `safeupdate` de Supabase rechaza `UPDATE` sin `WHERE` llamado por la API; el runtime de funciones se reinicia una vez al cargar (el CI ahora espera 3 respuestas seguidas). |
 | 14 nov 2026 | **v2.6 · Fase 4 (código, rama `fase/4-envios`, sale de `fase/3-pagos`).** Migración `20261115000000_envios.sql`: configuración de envío (⚠️ provisional), cotizaciones guardadas, `crear_pedido` con paquetería cotizada y dirección completa, guías (`envio_reservar_guia` / `envio_guardar_guia` / `envio_marcar_error`) y `registrar_rastreo_envio`. Edge Functions `envios-cotizar`, `envios-guia` y `webhook-envia`; `scripts/envia-simulado.mjs`. Caja con cotización por código postal; panel con "Generar guía" y "Descargar guía". 27 pgTAP, 6 Deno y 6 de integración nuevas. Pendiente: cuenta de Envia (sandbox), datos reales de envío y agenda de Metro/DiDi. |
 | 14 nov 2026 | **v2.5 · Revisión de la Fase 3.** Rama `fase/3-pagos`. Nueva migración `20261114000100_devoluciones.sql`: el reembolso o contracargo de un pedido que no salió devuelve el stock solo; si ya salió, la dueña lo confirma (acción `devolver` en `panel-pedidos` y botón en el panel); trigger que impide cambiar `pedidos.estado` fuera de `cambiar_estado_pedido`. `crear_pedido` serializa por clave de idempotencia (dos toques **simultáneos** daban 500 por la llave única; lo encontró la prueba nueva). Webhook de MP: clave del aviso sin `x-request-id`. CI: trabajo `integracion` con `tests/seguridad/fase3.test.mjs` (Edge Functions reales, MP simulado, panel con TOTP real). 20 pruebas pgTAP y 2 de Deno nuevas. D4 decidida. Las pruebas de Playwright citadas en la v2.4 no estaban en el repo; las sustituye el trabajo `integracion`. |
 | 11 nov 2026 | **v2.4 · Fase 3 (código).** Rama `fase/3-pagos`. SQL: `config_tienda` y `tarifas_entrega` (envío siempre en servidor), máquina de estados (`cambiar_estado_pedido`), `crear_pedido` (idempotencia, topes, precios de la BD, `total_cambio`), `registrar_pago_mp` (monto y moneda, SPEI pendiente extiende la reserva, pago tardío → `pagado_sin_stock`, reembolso, contracargo → "no entregar"), transferencia (aviso y validación), rastreo sin datos personales, alertas e idempotencia de webhooks; 44 pruebas pgTAP nuevas. Edge Functions: `pedidos-crear`, `webhook-mercadopago`, `pedidos-rastrear`, `comprobantes-subir`, `panel-pedidos` y alertas por correo en `cron-conciliar`; 15 pruebas Deno con firma HMAC real. Frontend: caja como invitada con Turnstile, página del pedido (seguimiento, datos de transferencia, comprobante), acciones y alertas en el panel, CSP estricta. **Cambios respecto al plan:** `panel-transferencias` y `pagos-reembolsar` se unieron en `panel-pedidos` (una función con permisos por acción); el comprobante se sube con URL firmada a R2 + verificación posterior (los modos de archivo esperan al bucket; mientras, WhatsApp). Verificado con un Mercado Pago simulado (`scripts/mp-simulado.mjs`, webhooks firmados): 33/33 en Playwright, cuadre ventas = movimientos. |
@@ -755,3 +770,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 36. Atémpora — Comisiones de Mercado Pago México 2026 (fuente secundaria; confirmar en [8]): https://atempora.studio/blog/comisiones-mercado-pago-2026
 37. Cofepris — Alerta sanitaria de dispositivos médicos, lentes de contacto Freshcolors Colorblends (22 may 2024): https://www.gob.mx/cms/uploads/attachment/file/917365/Alerta_Sanitaria_Freshcolors_22052024.pdf
 38. Supabase Discussions — ¿Es seguro `x-forwarded-for`? (se puede falsificar): https://github.com/orgs/supabase/discussions/34647
+39. Mercado Libre — Autenticación y autorización (access token de 6 h; solo vale el último refresh token): https://developers.mercadolibre.com.co/en_us/authentication-and-authorization
+40. Mercado Libre — Actualiza las variaciones (PUT con el arreglo de variaciones a modificar): https://developers.mercadolibre.com.ar/actualizacion-variacion-inmuebles
+41. Mercado Libre — Stock distribuido (Full lo administra ML; no se edita por API): https://developers.mercadolibre.com.ar/en_us/distributed-stock
+42. Mercado Libre — Stock multiorigen / User Products (no usar available_quantity en /items): https://developers.mercadolibre.com.ar/stock-multiwarehouse

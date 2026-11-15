@@ -81,6 +81,14 @@ MP_SIM_HOST=0.0.0.0 ENVIA_WEBHOOK_URL="http://127.0.0.1:55321/functions/v1/webho
 # Mover una guía:  curl -X POST -d '{"trackingNumber":"SIM100001","status":"In transit"}' http://127.0.0.1:8091/simular/rastreo
 ```
 
+**Mercado Libre (Fase 5)** sin la app de la clienta: simulador local (cuenta, 3 publicaciones de ejemplo, una con Full).
+```bash
+# supabase/functions/.env:  ML_APP_ID=123  ML_CLIENT_SECRET=local  ML_REDIRECT_URI=http://localhost:5173/panel/canales
+#                           ML_API_URL=http://host.docker.internal:8092  ML_AUTH_URL=http://127.0.0.1:8092
+MP_SIM_HOST=0.0.0.0 ML_APP_ID=123 ML_WEBHOOK_URL=http://127.0.0.1:55321/functions/v1/webhook-mercadolibre node scripts/ml-simulado.mjs
+# Panel → Canales → Conectar. Simular una venta:  curl -X POST -d '{"item":"MLM100100","cantidad":1}' http://127.0.0.1:8092/simular/venta
+```
+
 Con credenciales de **prueba** reales de MP: deja `MP_API_URL` vacío, pon el access token de prueba y la clave secreta del webhook, y expón `webhook-mercadopago` con una URL https pública (MP no llama a `localhost`).
 
 Con eso arriba también corren las pruebas de seguridad de la Fase 3 (las mismas del trabajo `integracion` del CI):
