@@ -78,6 +78,8 @@ export const aplicarCatalogo = (filas) => llamarFuncion('panel-catalogo', { cuer
 export const accionPedido = (cuerpo) => llamarFuncion('panel-pedidos', { cuerpo });
 /** Mercado Libre (panel-ml): estado, conectar, callback, publicaciones, vincular, desvincular, sincronizacion, desconectar. */
 export const accionML = (cuerpo) => llamarFuncion('panel-ml', { cuerpo });
+/** TikTok Shop (panel-tiktok): mismas acciones que accionML. */
+export const accionTikTok = (cuerpo) => llamarFuncion('panel-tiktok', { cuerpo });
 /** Guía de paquetería (envios-guia): generar | etiqueta. */
 export const accionGuia = (accion, pedido) => llamarFuncion('envios-guia', { cuerpo: { accion, pedido } });
 export async function cargarAlertas() { return exigir(await supabase.rpc('panel_alertas')); }
@@ -95,6 +97,9 @@ export const ALERTAS = {
   ml_token: 'Mercado Libre se desconectó: vuelve a conectar la cuenta en Canales',
   ml_sin_vincular: 'Venta en Mercado Libre de una publicación sin vincular: vincúlala en Canales y ajusta el stock',
   ml_sync_fallido: 'No se pudo actualizar el stock en Mercado Libre (revisa Canales)',
+  tt_token: 'TikTok Shop se desconectó: vuelve a conectar la tienda en Canales',
+  tt_sin_vincular: 'Venta en TikTok de un SKU sin vincular: vincúlalo en Canales y ajusta el stock',
+  tt_sync_fallido: 'No se pudo actualizar el stock en TikTok Shop (revisa Canales)',
   cron_sin_correr: 'Las tareas automáticas no corren desde hace más de 30 min',
 };
 

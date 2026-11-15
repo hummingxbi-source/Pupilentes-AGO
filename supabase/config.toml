@@ -464,3 +464,8 @@ verify_jwt = false
 [functions.panel-ml]
 [functions.webhook-mercadolibre]
 verify_jwt = false
+
+# Fase 6 · TikTok Shop. webhook-tiktok valida la firma HMAC de TikTok (Authorization).
+[functions.panel-tiktok]
+[functions.webhook-tiktok]
+verify_jwt = false

@@ -89,6 +89,14 @@ MP_SIM_HOST=0.0.0.0 ML_APP_ID=123 ML_WEBHOOK_URL=http://127.0.0.1:55321/function
 # Panel → Canales → Conectar. Simular una venta:  curl -X POST -d '{"item":"MLM100100","cantidad":1}' http://127.0.0.1:8092/simular/venta
 ```
 
+**TikTok Shop (Fase 6)** sin app de Partner Center: simulador local (rechaza peticiones mal firmadas, como TikTok).
+```bash
+# supabase/functions/.env:  TT_APP_KEY=ttkey  TT_APP_SECRET=<cualquier texto>  TT_SERVICE_ID=999
+#   TT_API_URL=http://host.docker.internal:8093  TT_AUTH_API_URL=http://host.docker.internal:8093  TT_AUTH_URL=http://127.0.0.1:8093/open/authorize
+MP_SIM_HOST=0.0.0.0 TT_APP_KEY=ttkey TT_APP_SECRET=<el mismo> TT_WEBHOOK_URL=http://127.0.0.1:55321/functions/v1/webhook-tiktok node scripts/tiktok-simulado.mjs
+# Simular una venta:  curl -X POST -d '{"producto":"1730000000000000001","sku":"1730000000000000101","cantidad":1}' http://127.0.0.1:8093/simular/venta
+```
+
 Con credenciales de **prueba** reales de MP: deja `MP_API_URL` vacío, pon el access token de prueba y la clave secreta del webhook, y expón `webhook-mercadopago` con una URL https pública (MP no llama a `localhost`).
 
 Con eso arriba también corren las pruebas de seguridad de la Fase 3 (las mismas del trabajo `integracion` del CI):

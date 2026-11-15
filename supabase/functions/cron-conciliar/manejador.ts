@@ -7,11 +7,12 @@
 // Fase 5: Mercado Libre — mantiene vigente el token (refresca con 1 h de margen), recupera las órdenes
 //         de las últimas 48 h aunque se haya perdido el aviso y publica el stock de la cola (si la
 //         sincronización está activa). Un error de ML no detiene el resto del cron.
-// Fase 6 agrega TikTok.
+// Fase 6: TikTok Shop — lo mismo que ML (token, órdenes de 48 h y cola de publicación).
 
 import { clienteServicio, exigirSecretoCron } from '../_shared/auth.ts';
 import { json, respuestaDeError } from '../_shared/http.ts';
 import { clienteML, conciliarOrdenes, configML, publicarStock, tokenVigente, type ClienteML } from '../_shared/ml.ts';
+import { clienteTT, conciliarOrdenesTT, configTT, publicarStockTT, tokenVigenteTT, type ClienteTT } from '../_shared/tiktok.ts';
 import type { SupabaseClient } from '../_shared/deps.ts';
 
 const TITULOS: Record<string, string> = {
@@ -24,6 +25,9 @@ const TITULOS: Record<string, string> = {
   ml_token: 'Mercado Libre se desconectó: hay que volver a autorizar la cuenta',
   ml_sin_vincular: 'Venta en Mercado Libre de una publicación sin vincular (el stock no se descontó)',
   ml_sync_fallido: 'No se pudo actualizar el stock en Mercado Libre',
+  tt_token: 'TikTok Shop se desconectó: hay que volver a autorizar la tienda',
+  tt_sin_vincular: 'Venta en TikTok de un SKU sin vincular (el stock no se descontó)',
+  tt_sync_fallido: 'No se pudo actualizar el stock en TikTok Shop',
   envio_incidencia: 'Problema con un envío (devolución, intento fallido o extravío)',
   envio_no_entregar: 'Un pedido "no entregar" va en camino',
   envio_desconocido: 'Aviso de Envia de una guía que no conocemos',
@@ -54,6 +58,23 @@ async function avisarPorCorreo(admin: SupabaseClient, fetchFn: typeof fetch): Pr
 }
 
 const mlPredeterminado = () => { const c = configML(); return c ? clienteML(c) : null; };
+const ttPredeterminado = () => { const c = configTT(); return c ? clienteTT(c) : null; };
+
+async function pasoTikTok(admin: SupabaseClient, tt: ClienteTT | null) {
+  if (!tt) return null;
+  try {
+    const t = await tokenVigenteTT(admin, tt, 60);
+    if (!t) return { conectada: false };
+    const ventas = await conciliarOrdenesTT(admin, tt, t);
+    const { data: cfg } = await admin.from('config_tienda').select('tt_almacen').single();
+    const pub = await publicarStockTT(admin, tt, t, (cfg as { tt_almacen?: string | null } | null)?.tt_almacen ?? null);
+    return { conectada: true, movimientos_recuperados: ventas, ...pub };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('cron_tt', msg);
+    return { error: msg.slice(0, 200) };
+  }
+}
 
 async function pasoML(admin: SupabaseClient, ml: ClienteML | null) {
   if (!ml) return null;
@@ -70,7 +91,7 @@ async function pasoML(admin: SupabaseClient, ml: ClienteML | null) {
   }
 }
 
-export async function manejar(req: Request, admin = clienteServicio(), fetchFn: typeof fetch = fetch, ml: ClienteML | null = mlPredeterminado()): Promise<Response> {
+export async function manejar(req: Request, admin = clienteServicio(), fetchFn: typeof fetch = fetch, ml: ClienteML | null = mlPredeterminado(), tt: ClienteTT | null = ttPredeterminado()): Promise<Response> {
   try {
     if (req.method !== 'POST') return json({ error: 'metodo_no_permitido' }, 405, { Allow: 'POST' });
     exigirSecretoCron(req);
@@ -89,11 +110,12 @@ export async function manejar(req: Request, admin = clienteServicio(), fetchFn: 
     if (e4) throw new Error('limpiar_cotizaciones_viejas: ' + e4.message);
 
     const mercadolibre = await pasoML(admin, ml);
+    const tiktok = await pasoTikTok(admin, tt);
 
     let alertas = 0;
     try { alertas = await avisarPorCorreo(admin, fetchFn); } catch (e) { console.error('alertas', e instanceof Error ? e.message : e); }
 
-    const detalle = { reservas_liberadas: liberados ?? 0, limites_borrados: limpiadas ?? 0, payloads_borrados: payloads ?? 0, cotizaciones_borradas: cotizaciones ?? 0, alertas_enviadas: alertas, ...(mercadolibre ? { mercadolibre } : {}), ms: Date.now() - inicio };
+    const detalle = { reservas_liberadas: liberados ?? 0, limites_borrados: limpiadas ?? 0, payloads_borrados: payloads ?? 0, cotizaciones_borradas: cotizaciones ?? 0, alertas_enviadas: alertas, ...(mercadolibre ? { mercadolibre } : {}), ...(tiktok ? { tiktok } : {}), ms: Date.now() - inicio };
     const { error: e2 } = await admin.rpc('registrar_latido', { p_nombre: 'cron-conciliar', p_detalle: detalle });
     if (e2) throw new Error('registrar_latido: ' + e2.message);
 

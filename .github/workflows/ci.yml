@@ -112,6 +112,8 @@ jobs:
         run: |
           MP_WEBHOOK_SECRET=$(openssl rand -hex 24)   # se generan en cada corrida
           ENVIA_WEBHOOK_SECRET=$(openssl rand -hex 24)
+          TT_APP_SECRET=$(openssl rand -hex 16)
+          echo "TT_APP_SECRET=$TT_APP_SECRET" >> "$GITHUB_ENV"
           echo "MP_WEBHOOK_SECRET=$MP_WEBHOOK_SECRET" >> "$GITHUB_ENV"
           echo "ENVIA_WEBHOOK_SECRET=$ENVIA_WEBHOOK_SECRET" >> "$GITHUB_ENV"
           cat > "$RUNNER_TEMP/funciones.env" <<EOF
@@ -131,8 +133,14 @@ jobs:
           ML_REDIRECT_URI=http://localhost:5173/panel/canales
           ML_API_URL=http://host.docker.internal:8092
           ML_AUTH_URL=http://127.0.0.1:8092
+          TT_APP_KEY=ttkey
+          TT_APP_SECRET=$TT_APP_SECRET
+          TT_SERVICE_ID=999
+          TT_API_URL=http://host.docker.internal:8093
+          TT_AUTH_API_URL=http://host.docker.internal:8093
+          TT_AUTH_URL=http://127.0.0.1:8093/open/authorize
           EOF
-      - name: Mercado Pago, Envia y Mercado Libre simulados
+      - name: Mercado Pago, Envia, Mercado Libre y TikTok simulados
         run: |
           MP_SIM_HOST=0.0.0.0 nohup node scripts/mp-simulado.mjs > "$RUNNER_TEMP/mp.log" 2>&1 &
           MP_SIM_HOST=0.0.0.0 ENVIA_WEBHOOK_URL="http://127.0.0.1:55321/functions/v1/webhook-envia?s=$ENVIA_WEBHOOK_SECRET" \
@@ -140,7 +148,10 @@ jobs:
           MP_SIM_HOST=0.0.0.0 ML_APP_ID=123 ML_WEBHOOK_URL=http://127.0.0.1:55321/functions/v1/webhook-mercadolibre \
             nohup node scripts/ml-simulado.mjs > "$RUNNER_TEMP/ml.log" 2>&1 &
           timeout 20 sh -c 'until curl -s -o /dev/null http://127.0.0.1:8090/; do sleep 1; done'
+          MP_SIM_HOST=0.0.0.0 TT_APP_KEY=ttkey TT_APP_SECRET=$TT_APP_SECRET TT_WEBHOOK_URL=http://127.0.0.1:55321/functions/v1/webhook-tiktok \
+            nohup node scripts/tiktok-simulado.mjs > "$RUNNER_TEMP/tt.log" 2>&1 &
           timeout 20 sh -c 'until curl -s -o /dev/null http://127.0.0.1:8092/; do sleep 1; done'
+          timeout 20 sh -c 'until curl -s -o /dev/null http://127.0.0.1:8093/; do sleep 1; done'
           timeout 20 sh -c 'until curl -s -o /dev/null http://127.0.0.1:8091/; do sleep 1; done'
       - name: Servir las funciones
         run: |
@@ -155,7 +166,7 @@ jobs:
           echo "las funciones no arrancaron"; cat "$RUNNER_TEMP/funciones.log"; exit 1
       - name: El contenedor de funciones alcanza al simulador
         run: docker exec "$(docker ps --filter name=edge_runtime -q | head -1)" sh -c 'getent hosts host.docker.internal || true'
-      - name: tests/seguridad (pedidos, pagos, envíos, Mercado Libre, rastreo, panel con MFA)
+      - name: tests/seguridad (pedidos, pagos, envíos, Mercado Libre, TikTok, rastreo, panel con MFA)
         run: |
           eval "$(supabase status -o env | sed 's/^/export /')"
           export SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY:-$ANON_KEY}" SUPABASE_SECRET_KEY="${SECRET_KEY:-$SERVICE_ROLE_KEY}"
@@ -167,5 +178,6 @@ jobs:
           echo "::group::mp simulado"; tail -n 100 "$RUNNER_TEMP/mp.log"; echo "::endgroup::"
           echo "::group::envia simulado"; tail -n 100 "$RUNNER_TEMP/envia.log"; echo "::endgroup::"
           echo "::group::ml simulado"; tail -n 100 "$RUNNER_TEMP/ml.log"; echo "::endgroup::"
+          echo "::group::tiktok simulado"; tail -n 100 "$RUNNER_TEMP/tt.log"; echo "::endgroup::"
 
   # e2e: se activa en la Fase 8 (Playwright, solo en PR a main).
