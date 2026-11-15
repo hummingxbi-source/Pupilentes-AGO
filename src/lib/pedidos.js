@@ -1,6 +1,6 @@
 // Pedidos de la tienda (Fase 3). Todo pasa por Edge Functions; el navegador nunca fija precios ni stock.
 import { llamarFuncion } from './api';
-import { supabase } from './supabase';
+import { supabase, supabaseCuenta } from './supabase';
 
 /** Tarifas de entrega públicas (vista `entregas_publicas`). El costo real lo vuelve a calcular el servidor. */
 export async function cargarEntregas() {
@@ -12,7 +12,8 @@ export async function cargarEntregas() {
 /** Opciones de paquetería (Envia.com). El servidor guarda cada opción; el pedido solo manda su id. */
 export const cotizarEnvio = (items, destino, turnstile) => llamarFuncion('envios-cotizar', { cuerpo: { items, destino, turnstile }, señal: AbortSignal.timeout(25000) });
 
-export const crearPedido = (datos) => llamarFuncion('pedidos-crear', { cuerpo: datos, señal: AbortSignal.timeout(25000) });
+/** Con sesión de cuenta (Fase 7) el pedido queda en su cuenta y puede usar puntos; sin ella, como invitada. */
+export const crearPedido = (datos) => llamarFuncion('pedidos-crear', { cuerpo: datos, señal: AbortSignal.timeout(25000), cliente: supabaseCuenta });
 export const rastrearPorToken = (token) => llamarFuncion('pedidos-rastrear', { cuerpo: { token }, señal: AbortSignal.timeout(10000) });
 export const rastrearPorFolio = (folio, tel4, turnstile) => llamarFuncion('pedidos-rastrear', { cuerpo: { folio, tel4, turnstile }, señal: AbortSignal.timeout(10000) });
 export const avisarPorWhatsapp = (token) => llamarFuncion('comprobantes-subir', { cuerpo: { modo: 'whatsapp', token } });

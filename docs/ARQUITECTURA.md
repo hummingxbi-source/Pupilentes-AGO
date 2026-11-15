@@ -2,7 +2,7 @@
 
 > Documento vivo. Es la guía para que cualquier persona del equipo (con Claude) desarrolle el proyecto real, fase por fase.
 > **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
-> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v2.9) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local. Fases 3, 4, 5 y 6 — código terminado en `main`** (PR #13–#16, 14 nov) con pruebas de integración y seguridad en el CI contra simuladores. Sus pruebas con los servicios reales (Mercado Pago, Envia, Mercado Libre, TikTok Shop) se hacen todas juntas en la **Fase 8** (decisión del 14 nov); también faltan los datos de la clienta. **Siguiente: Fase 7** (cuenta de clienta y puntos). Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
+> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v3.0) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local. Fases 3 a 7 — código terminado** (3–6 en `main` con PR #13–#16; 7 en la rama `fase/7-cuenta`, 14 nov) con pruebas de integración y seguridad en el CI contra simuladores y contra Supabase Auth local (código por correo con Mailpit y Turnstile de prueba). De la Fase 8 ya está el código de **alertas completas**. **Todo el código del backend está escrito: lo que queda es la Fase 8 (pruebas E2E, ZAP, Lighthouse, revisión de RLS, restauración del respaldo y las pruebas con los servicios reales), los datos de la clienta y la Fase 9 (nube y lanzamiento).** Pendiente del equipo: repo a privado
 >
 > Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
 
@@ -193,7 +193,7 @@ flowchart LR
                             stock.ts precios.ts r2.ts
                             canales/ml.ts canales/tiktok.ts  pagos/mercadopago.ts  envios/envia.ts
     /salud
-    /pedidos-crear  /pedidos-rastrear
+    /pedidos-crear  /pedidos-rastrear  /cuenta
     /comprobantes-subir
     /panel-stock  /panel-catalogo  /panel-pedidos (transferencias, estados, reembolsos)
     /webhook-mercadopago
@@ -472,20 +472,22 @@ Reglas del flujo:
 **Terminado cuando:** una semana sin descuadres en los 3 canales.
 
 ### Fase 7 · Cuenta de clienta y puntos
-- [ ] Login con **código por correo** (Supabase Auth OTP + Resend). Gratis hasta 100 correos/día [18].
-- [ ] Protección anti-bots de Supabase Auth con Turnstile. La documentación la confirma para inicio de sesión, registro y recuperación de contraseña [34]; ⚠️ comprobar en esta fase que también cubre el envío de códigos y, si no, envolver el envío en una Edge Function con Turnstile.
-- [ ] Al crear la cuenta, los pedidos hechos como invitada con ese mismo correo (ya verificado por el código) se asocian a la clienta.
-- [ ] Puntos como bitácora: se ganan al pagarse un pedido y se usan en el checkout (validado en servidor, con bloqueo de fila).
-- [ ] Historial de pedidos y guías; recompra en 1 clic.
+- [x] Login con **código por correo** (Supabase Auth OTP, 6 dígitos, 10 min; plantilla `supabase/templates/codigo.html`). *(14 nov. En local el correo llega a Mailpit; el SMTP de Resend y las plantillas se configuran al crear el proyecto en la nube, Fase 9 — pasos en el README. Gratis hasta 100 correos/día [18].)* Registro abierto en Auth (`enable_signup`) con **confirmación de correo obligatoria**: un registro con contraseña nunca entra sin probar el correo, y una cuenta sin correo verificado o con rol de panel no es cuenta de clienta (`privado.asegurar_cuenta`). La sesión de la tienda vive aparte de la del panel (`supabaseCuenta`, otra llave de almacenamiento).
+- [x] Protección anti-bots de Supabase Auth con Turnstile (`[auth.captcha]`). ✅ **Comprobado en el CI:** sin token de Turnstile, `/auth/v1/otp` no manda el código; con él, sí. No hizo falta una Edge Function. También aplica al inicio de sesión del panel con contraseña, que ahora muestra el widget.
+- [x] Al entrar, los pedidos hechos como invitada con ese mismo correo (ya verificado por el código) se asocian a la cuenta (`cuenta_vincular`, `cuenta_ligada_por = 'correo'`). **Nunca por el ligado por teléfono** de `crear_pedido` (§8). De esos pedidos la cuenta ve folio, estado, piezas, total y guía, pero no el contacto ni la dirección (los pudo escribir otra persona con ese correo).
+- [x] Puntos como bitácora (`puntos_movimientos`, inmutable): se ganan al pagarse un pedido y se usan en el checkout (validado en servidor, con bloqueo de fila). *(Un trigger concilia los puntos de cada pedido con su estado: el canje se aparta al crear el pedido y regresa si se cancela, vence o se reembolsa; lo ganado se quita con reembolso o contracargo. Reglas de la demo en `config_tienda`, editables por la dueña: 1 punto por cada $10 pagados en productos, cada punto vale $0.50, hasta el 50 % de los productos, +50 al completar el perfil.)*
+- [x] Historial de pedidos y guías; recompra en 1 clic ("Repetir", con precio y disponibilidad de hoy). Último par, renovación según su duración y direcciones de envíos anteriores (se pueden reusar en la caja).
+- [ ] ⚠️ Reglas de puntos con la clienta: valor del punto, tope por compra y bono. **Cambio respecto a la demo:** el bono de perfil se da cuando el perfil está completo **y** ya hay una compra pagada, para que crear correos falsos no regale descuentos.
 
-**Automáticas:** una clienta no ve datos de otra (RLS); no se usan más puntos de los disponibles ni dos veces en paralelo; límite de envío de códigos.
+**Probar a mano:** entrar con un correo (código en Mailpit), ver un pedido de invitada asociado, completar el perfil, comprar usando puntos, cancelar y ver que regresan.
+**Automáticas:** una clienta no ve datos de otra (RLS); no se usan más puntos de los disponibles ni dos veces en paralelo; límite de envío de códigos. *(14 nov: pgTAP `09_cuenta` (43), Deno `cuenta.test.ts` (7), Vitest `cuenta.test.js` y `tests/seguridad/fase7.test.mjs` (10) contra Supabase Auth local con Mailpit, incluida la compra con puntos pagada en el simulador de MP y dos compras en paralelo con los mismos puntos.)*
 
 ### Fase 8 · Endurecimiento y pruebas E2E automáticas
 - [ ] Suite **Playwright** (§7.2) en CI contra el entorno local o un preview.
 - [ ] Escaneo OWASP ZAP *baseline* contra el preview.
 - [ ] Revisión completa de RLS y permisos: cada tabla, cada función, con la llave publicable y con una sesión de clienta. Revisar los avisos de seguridad del panel de Supabase.
 - [ ] Lighthouse en móvil contra la meta de §3.4.
-- [ ] Alertas completas: webhooks, conciliación, respaldo, tokens por vencer, tamaño de BD.
+- [x] Alertas completas: webhooks, conciliación, respaldo, tokens por vencer, tamaño de BD. *(14 nov, migración `20261119000000_alertas.sql`. Ya había: webhook fallido, tokens de ML/TikTok que no se pudieron refrescar (se refrescan con 1 h de margen), sincronización fallida y cron sin correr. Nuevas: `bd_grande` (> 400 MB, §2.2), `respaldo_atrasado` (> 36 h; `respaldo.yml` deja un latido) y `conciliacion_fallida`. No se repiten mientras haya una igual sin atender.)*
 - [ ] **Prueba de restauración del respaldo** (descifrar y levantar en local).
 
 **Pruebas con servicios reales** *(movidas aquí el 14 nov: el código de las Fases 3–6 está terminado y probado con simuladores; estas pruebas se hacen juntas al final)*:
@@ -550,6 +552,8 @@ Reglas del flujo:
 | `envios-guia`, `r2-firmar` | `duena` o `ayudante` | Sesión válida + `aal2` + rol |
 | `panel-ml` | `duena` (todo); `duena` o `ayudante` (ver estado) | Sesión válida + `aal2` + rol por acción |
 | `panel-tiktok` | igual que `panel-ml` | Sesión válida + `aal2` + rol por acción |
+| `cuenta` | Clienta con sesión (código por correo) | Sesión válida + correo verificado + sin rol de panel; el usuario sale del token, nunca del cuerpo |
+| `pedidos-crear` con puntos | Clienta con sesión | Además de lo público: el token decide la cuenta; saldo y tope en SQL con bloqueo de fila |
 | `webhook-tiktok` | TikTok Shop | Firma HMAC en `Authorization` (401 si no coincide) + `tts_notification_id` + `shop_id` propio + consulta de la orden a la API |
 | `webhook-mercadolibre` | Mercado Libre | `application_id` y `user_id` propios + `_id` del aviso + consulta de la orden a la API (ML no firma) |
 | `webhook-envia` | Envia.com | Secreto en la URL (≥ 24 caracteres) + `X-Webhook-Id` + consulta del estado a la API |
@@ -607,7 +611,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | `calidad` | `npm ci` → ESLint → `deno check` → Vitest → `deno test` (unitarias) → `npm run build` | Fase 0 |
 | `seguridad` | gitleaks → `npm audit --omit=dev --audit-level=high` | Fase 0 |
 | `bd` | `supabase start` → `supabase db reset` (aplica migraciones y semilla desde cero) → `supabase test db` (pgTAP) | Fase 1 |
-| `integracion` | `supabase start` → `supabase functions serve` + `scripts/mp-simulado.mjs` → `node --test tests/seguridad` contra el entorno local | Fase 3 (activo desde el 14 nov) |
+| `integracion` | `supabase start` (con Auth, Turnstile de prueba y Mailpit) → `supabase functions serve` + simuladores de MP, Envia, ML y TikTok → `node --test tests/seguridad` contra el entorno local | Fase 3 (activo desde el 14 nov; Auth y Mailpit desde la Fase 7) |
 | `e2e` | Playwright (solo en PR a `main`, por duración) | Fase 8 |
 
 - En el CI, Mercado Pago, Envia, ML y TikTok se **simulan**: las pruebas firman sus propios webhooks con un secreto de prueba. Los sandboxes reales se usan en las pruebas manuales, para que el CI no falle por caídas ajenas.
@@ -638,7 +642,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 - **Límite de correos:** 100/día en Resend gratis [18].
 - **Sin staging después del lanzamiento:** en Free solo hay 2 proyectos (JM y AGO). Los cambios posteriores se prueban en local con el CI; es una razón más para pasar a Pro cuando haya más clientas.
 - ⚠️ **IP de la clienta en las funciones:** `limite.ts` la toma de `cf-connecting-ip` o `x-forwarded-for`. Hay reportes de que en Supabase `x-forwarded-for` se puede falsificar [38]; si es así, los límites **por IP** se saltan (los límites por teléfono, por folio y Turnstile siguen protegiendo). Verificar en el proyecto de staging qué cabecera pone la plataforma y ajustar `ipCliente` antes del lanzamiento.
-- ⚠️ **Pedidos de invitada ligados por teléfono o correo sin verificar:** `crear_pedido` liga el pedido a la `clienta` con el mismo teléfono (o correo). Hoy solo lo ve el panel. En la **Fase 7**, la clienta con cuenta debe ver únicamente los pedidos asociados por su correo **verificado** con el código, nunca por ese ligado automático; si no, alguien podría ver pedidos ajenos.
+- **Pedidos de invitada ligados por teléfono o correo sin verificar** *(resuelto en la Fase 7)*: `crear_pedido` liga el pedido a la `clienta` con el mismo teléfono (o correo) solo para el panel. La cuenta usa otra columna (`pedidos.cuenta_id`), que se llena únicamente con la sesión o con el correo verificado por el código.
 - **Fiscal:** en 2026 las plataformas retienen a personas físicas 2.5% de ISR y, sin RFC válido, el 100% del IVA [14]. ⚠️ Que la clienta lo confirme con su contador. (No somos asesores fiscales.)
 - ⚠️ **Regulación sanitaria:** Cofepris publica alertas de lentes de contacto bajo la categoría de dispositivos médicos, y en una de mayo de 2024 señaló una marca por no tener registro sanitario [37]. Conviene que la clienta confirme que sus productos lo tienen antes de lanzar una tienda propia. (No somos asesores legales; es una pregunta para ella y su asesor.)
 - ⚠️ **Graduación como dato personal:** una graduación ligada a una persona puede considerarse dato de salud. Se valida con un asesor al redactar el aviso de privacidad (Fase 9).
@@ -692,6 +696,12 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 - [ ] ¿Su cuenta maneja varios depósitos (multiorigen)?
 - [ ] Crear la app de desarrollador con **su** cuenta de ML, o autorizar la nuestra (T7).
 
+**Cuenta y puntos (Fase 7, preguntas del 14 nov).** Hoy rigen las reglas de la demo; la dueña las cambia en `config_tienda`:
+- [ ] ¿Cuánto vale un punto y cada cuánto se gana? *Provisional: 1 punto por cada $10 pagados en productos; cada punto vale $0.50.*
+- [ ] ¿Hasta qué parte de la compra se puede pagar con puntos? *Provisional: 50 % de los productos (el envío nunca).*
+- [ ] ¿Mantiene el bono por completar el perfil? *Provisional: +50, solo una vez y cuando ya hay una compra pagada.*
+- [ ] ¿Los niveles (Esencial, Dorado, Black) dan algún beneficio? *Hoy solo se muestran; la demo prometía "envío prioritario" en Dorado y se quitó hasta que ella lo confirme.*
+
 **TikTok Shop (Fase 6, preguntas del 14 nov).**
 - [ ] Registrar la app en TikTok Shop Partner Center y autorizarla como **titular** de la tienda (T8).
 - [ ] ¿Usa "Fulfilled by TikTok" en algún producto? ¿Cuántos almacenes tiene su tienda?
@@ -721,6 +731,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | 8 nov 2026 | **Backend en Supabase** (Edge Functions + Cron) en lugar de Cloudflare Functions; Cloudflare solo para frontend y R2. **Ramas:** `main` = demo congelada hasta el lanzamiento, `develop` = proyecto nuevo. La demo pasa a Cloudflare y se borra Vercel en la Fase 0. |
 | 8 nov 2026 | **Ramas finales:** `demo` (+ tag `demo-v1`) guarda la demo congelada; `main` = proyecto real; `fase/*` → PR a `main`. Vercel solo se **desconecta** (el link de la clienta sigue mostrando la demo). Se trabaja en local. Nuevos: `README.md` (cómo empezar) y `docs/FRONTEND.md` (la demo es punto de partida, no diseño cerrado). |
 | 10 nov 2026 | **v2 · Revisión de seguridad y pagos.** Detalle abajo. |
+| 14 nov 2026 | **v3.0 · Fase 7 (código, rama `fase/7-cuenta`) y alertas de la Fase 8.** Migración `20261118000000_cuenta.sql`: `pedidos.cuenta_id` / `cuenta_ligada_por`, `privado.asegurar_cuenta`, `cuenta_vincular`, `cuenta_resumen`, `cuenta_guardar_perfil`, bitácora de puntos conciliada por trigger, reglas en `config_tienda`, RLS de la clienta y `crear_pedido` con puntos. Edge Function `cuenta`; `pedidos-crear` acepta la sesión de la cuenta. Auth: registro abierto con confirmación, Turnstile (`[auth.captcha]`, comprobado que cubre `/otp`) y plantilla con código. Tienda: `/cuenta` real y caja con puntos y direcciones; panel con Turnstile al entrar y puntos en Clientas. Migración `20261119000000_alertas.sql` (`revisar_salud`, `alerta_conciliacion`). CI: Mailpit encendido en `integracion`. 53 pgTAP, 7 Deno, 5 Vitest y 10 de integración nuevas. |
 | 14 nov 2026 | **v2.9 · Pruebas con servicios reales pasan a la Fase 8.** Fases 3–6 unidas a `main` (PR #13–#16) con el CI en verde. Las pruebas con Mercado Pago, Envia, Mercado Libre y TikTok Shop (T1–T3, T7, T8) y sus verificaciones ⚠️ se agrupan en un bloque de la Fase 8, para avanzar con el código sin esperar cuentas. Siguiente: Fase 7. |
 | 14 nov 2026 | **v2.8 · Fase 6 (código, rama `fase/6-tiktok`, sale de `fase/5-mercadolibre`) y Fases 3–4 en `main`.** El PR #14 (Fase 4) se unió primero y trajo todo el #13 (Fase 3), que se cierra sin cambios. Fase 6: migración `20261117000000_tiktok.sql`, `_shared/tiktok.ts`, `panel-tiktok`, `webhook-tiktok`, TikTok en `cron-conciliar`, Canales genérico para ML y TikTok, `scripts/tiktok-simulado.mjs`. 14 pgTAP, 4 Deno y 5 de integración nuevas (38/38 en el CI). |
 | 14 nov 2026 | **v2.7 · Fase 5 (código, rama `fase/5-mercadolibre`, sale de `fase/4-envios`).** Migración `20261116000000_mercadolibre.sql`: tokens en Vault, `state` OAuth, concesión de refresco, `ml_registrar_orden`, vínculos, `ml_activar_sync` y cola de publicación con colchón y reintentos. Edge Functions `panel-ml` y `webhook-mercadolibre`; ML en `cron-conciliar`. Panel → Canales. `scripts/ml-simulado.mjs`. 27 pgTAP, 7 Deno y 7 de integración nuevas. Hallazgos del CI: `safeupdate` de Supabase rechaza `UPDATE` sin `WHERE` llamado por la API; el runtime de funciones se reinicia una vez al cargar (el CI ahora espera 3 respuestas seguidas). |

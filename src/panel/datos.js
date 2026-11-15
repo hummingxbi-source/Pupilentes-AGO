@@ -63,7 +63,7 @@ export async function cargarPedidos() {
 
 export async function cargarClientas() {
   return exigir(await supabase.from('clientas')
-    .select('id, nombre, telefono, correo, creado_en, pedidos(total, pago_estado, creado_en)')
+    .select('id, nombre, telefono, correo, creado_en, auth_user_id, pedidos(total, pago_estado, creado_en), puntos_movimientos(delta)')
     .order('creado_en', { ascending: false }).limit(500));
 }
 
@@ -101,6 +101,9 @@ export const ALERTAS = {
   tt_sin_vincular: 'Venta en TikTok de un SKU sin vincular: vincúlalo en Canales y ajusta el stock',
   tt_sync_fallido: 'No se pudo actualizar el stock en TikTok Shop (revisa Canales)',
   cron_sin_correr: 'Las tareas automáticas no corren desde hace más de 30 min',
+  bd_grande: 'La base de datos pasa de 400 MB: avisa al equipo para decidir el plan de Supabase',
+  respaldo_atrasado: 'El respaldo diario no ha corrido en más de 36 horas: avisa al equipo',
+  conciliacion_fallida: 'La conciliación con Mercado Libre o TikTok está fallando (revisa Canales)',
 };
 
 // --- Estados de pedido (ARQUITECTURA §3.3) ---------------------------------------

@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, Smartphone, LogOut, ArrowUpRight } from 'lucide-react';
 import { LOGO } from '../ui';
 import { A } from '../lib/catalog';
 import { useSesion } from './sesion';
+import { Turnstile } from '../lib/Turnstile';
 
 // Los iris del catálogo que recorre la escena, como en el probador.
 const TONOS = ['azul', 'verde', 'miel', 'gris', 'aqua', 'avellana'];
@@ -59,14 +60,21 @@ function Login() {
   const [correo, setCorreo] = useState('');
   const [contrasena, setContrasena] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const enviar = async (e) => { e.preventDefault(); setEnviando(true); await entrar(correo, contrasena); setEnviando(false); };
+  // Supabase Auth exige Turnstile para entrar con contraseña (Fase 7, [auth.captcha]); cada token sirve una vez
+  const ts = useRef();
+  const [token, setToken] = useState(null);
+  const enviar = async (e) => {
+    e.preventDefault(); if (!token) return;
+    setEnviando(true); await entrar(correo, contrasena, token); setEnviando(false); ts.current?.reiniciar();
+  };
   return (
     <form onSubmit={enviar}>
       <h1>Hola de nuevo</h1>
       <p className="acceso-sub">Entra con tu correo y contraseña. Después te pedimos el código de tu app.</p>
       <div className="field"><label htmlFor="correo">Correo</label><input id="correo" className="inp" type="email" autoComplete="username" required value={correo} onChange={(e) => setCorreo(e.target.value)} /></div>
       <div className="field"><label htmlFor="contrasena">Contraseña</label><input id="contrasena" className="inp" type="password" autoComplete="current-password" required value={contrasena} onChange={(e) => setContrasena(e.target.value)} /></div>
-      <button className="btn full acceso-btn" disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar al panel'}</button>
+      <div style={{ marginTop: 14 }}><Turnstile ref={ts} accion="panel" alCambiar={setToken} /></div>
+      <button className="btn full acceso-btn" disabled={enviando || !token}>{enviando ? 'Entrando…' : 'Entrar al panel'}</button>
     </form>
   );
 }

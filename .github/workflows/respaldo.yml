@@ -66,3 +66,5 @@ jobs:
             --endpoint-url "https://$R2_CUENTA_ID.r2.cloudflarestorage.com" --only-show-errors
           rm -rf "$D"
           echo "Respaldo subido: bd/respaldo-$FECHA.tar.gz.age"
+          # Latido: si deja de llegar, cron-conciliar avisa "respaldo_atrasado" (Fase 8)
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -qc "select public.registrar_latido('respaldo', jsonb_build_object('archivo', 'bd/respaldo-$FECHA.tar.gz.age'))"

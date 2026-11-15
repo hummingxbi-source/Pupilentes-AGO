@@ -8,10 +8,12 @@ import { mxn } from '../lib/catalog';
 import { useProductos } from '../lib/tienda';
 import { cargarEntregas, cotizarEnvio, crearPedido } from '../lib/pedidos';
 import { Turnstile } from '../lib/Turnstile';
+import { useCuenta, iniciarCuenta, maxPuntos, descuentoDe, derivados } from '../lib/cuenta';
 import { LOGO, TLink, Iris } from '../ui';
 
 // Caja real (Fase 3): compra como invitada (D5), Mercado Pago con tarjeta o SPEI (D2) o transferencia
 // con apartado de 24 h (D3). El total lo calcula el servidor; aquí solo se muestra.
+// Fase 7: con la cuenta abierta el pedido queda en su historial y puede usar puntos (los valida el servidor).
 
 const HORAS = ['12:00', '15:30', '18:00'];
 const ETAPAS = ['Tus datos', 'Entrega', 'Pago'];
@@ -54,11 +56,20 @@ export default function Checkout() {
   const [totalServidor, setTotalServidor] = useState(null);   // si el servidor dice que el total cambió
   const clave = useRef(nuevaClave());
   const ds = useMemo(dias, []);
+  // Cuenta (Fase 7)
+  const cuenta = useCuenta();
+  const conCuenta = cuenta.estado === 'dentro' && !!cuenta.datos;
+  const [usarPuntos, setUsarPuntos] = useState(false);
+  useEffect(() => { iniciarCuenta(); }, []);
+  useEffect(() => {
+    const p = cuenta.datos?.perfil; if (!p) return;
+    setContacto((c) => ({ nombre: c.nombre || p.nombre || '', telefono: c.telefono || p.telefono || '', correo: c.correo || p.correo || '' }));
+  }, [cuenta.datos]);
 
   useGSAP(() => { gsap.from('.co-step > *', { y: 30, opacity: 0, stagger: 0.05, duration: 0.8, ease: 'expo.out', clearProps: 'transform' }); }, { scope: root, dependencies: [paso] });
   useEffect(() => { cargarEntregas().then(setTarifas).catch(() => setTarifas([])); }, []);
   // Cambió algo del pedido → es un pedido distinto (otra clave) y el aviso de total ya no aplica
-  useEffect(() => { clave.current = nuevaClave(); setTotalServidor(null); }, [tipo, zona, metodo, bolsa, opcion]);
+  useEffect(() => { clave.current = nuevaClave(); setTotalServidor(null); }, [tipo, zona, metodo, bolsa, opcion, usarPuntos, conCuenta]);
   // La cotización vale para ese CP y esas piezas: si cambian, hay que volver a cotizar
   useEffect(() => { setOpciones(null); setOpcion(null); }, [dir.cp, bolsa]);
 
@@ -77,7 +88,12 @@ export default function Checkout() {
   const zonasDe = (t) => (tarifas ?? []).filter((x) => x.tipo === t);
   const sub = bolsa.reduce((a, b) => a + b.precio * b.cant, 0);
   const envio = tarifa?.costo ?? null;
-  const total = totalServidor ?? sub + (envio ?? 0);
+  const reglas = cuenta.datos?.reglas;
+  const ptsMax = conCuenta ? maxPuntos(sub, cuenta.datos.saldo, reglas) : 0;
+  const puntos = usarPuntos && ptsMax > 0 ? ptsMax : 0;
+  const descuento = descuentoDe(puntos, reglas);
+  const total = totalServidor ?? Math.round((sub + (envio ?? 0) - descuento) * 100) / 100;
+  const guardadas = conCuenta ? derivados(cuenta.datos.pedidos).direcciones : [];
   const necesitaDir = tipo === 'didi';   // paquetería tiene su propio formulario (Fase 4)
   const telOk = contacto.telefono.replace(/\D/g, '').length === 10;
   const correoOk = !contacto.correo || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contacto.correo);
@@ -126,8 +142,9 @@ export default function Checkout() {
       const r = await crearPedido({
         clave_idempotencia: clave.current, metodo_pago: metodo, items, entrega: entrega(),
         contacto: { nombre: contacto.nombre.trim(), telefono: contacto.telefono.replace(/\D/g, ''), correo: contacto.correo.trim() },
-        total_visto: total, turnstile: token,
+        puntos, total_visto: total, turnstile: token,
       });
+      if (conCuenta) cuenta.refrescar();
       vaciar();
       if (r.url_pago) { window.location.assign(r.url_pago); return; }
       nav(`/pedido/${r.token}?nuevo=1`, { replace: true });
@@ -135,6 +152,12 @@ export default function Checkout() {
       if (e.codigo === 'total_cambio' && Number.isFinite(e.datos?.total)) {
         setTotalServidor(e.datos.total);
         setError(`El total cambió a ${mxn(e.datos.total)} (precio o envío actualizados). Revísalo y vuelve a confirmar.`);
+      } else if (['puntos_insuficientes', 'puntos_excedidos', 'puntos_inactivos'].includes(e.codigo)) {
+        setUsarPuntos(false); cuenta.refrescar();
+        setError(`${e.message} Quitamos los puntos; revisa el total y vuelve a confirmar.`);
+      } else if (e.codigo === 'sesion_vencida' || e.codigo === 'puntos_sin_cuenta') {
+        setUsarPuntos(false); cuenta.salir();
+        setError(e.message || 'Tu sesión venció. Puedes comprar como invitada o volver a entrar a tu cuenta.');
       } else if (['cotizacion_vencida', 'cotizacion_no_coincide'].includes(e.codigo)) {
         setOpciones(null); setOpcion(null); setPaso(1);
         setErrorEnvio(e.message);
@@ -164,7 +187,9 @@ export default function Checkout() {
 
           {paso === 0 && (<form className="co-step" onSubmit={(e) => { e.preventDefault(); if (datosOk) setPaso(1); }}>
             <h1 className="h-l" style={{ margin: '26px 0 12px' }}>¿A quién le <span className="it gold">entregamos?</span></h1>
-            <p className="lead">No necesitas cuenta. Con tu WhatsApp te confirmamos la entrega.</p>
+            {conCuenta
+              ? <p className="lead">Compras con tu cuenta <b>{cuenta.correo}</b>: este pedido suma puntos. Con tu WhatsApp te confirmamos la entrega.</p>
+              : <p className="lead">No necesitas cuenta. Con tu WhatsApp te confirmamos la entrega. <TLink to="/cuenta" className="link">¿Tienes cuenta? Entra</TLink> para sumar y usar puntos.</p>}
             <div className="field"><label htmlFor="co-nombre">Nombre completo</label><input id="co-nombre" className="inp" autoComplete="name" required maxLength={120} value={contacto.nombre} onChange={sc('nombre')} /></div>
             <div className="field"><label htmlFor="co-tel">WhatsApp (10 dígitos)</label>
               <div className="cx-tel" style={{ marginTop: 0 }}><span className="mono">+52</span><input id="co-tel" className="mono" inputMode="tel" autoComplete="tel-national" required value={contacto.telefono} onChange={(e) => setContacto({ ...contacto, telefono: e.target.value.replace(/[^\d ]/g, '').slice(0, 14) })} placeholder="55 1234 5678" /></div>
@@ -189,6 +214,8 @@ export default function Checkout() {
                 </button>);
             })}
             {tipo === 'paqueteria' && <div className="box" style={{ marginTop: 18 }}>
+              {guardadas.length > 0 && <div className="frow" style={{ marginBottom: 12 }}>{guardadas.map((d, i) => (
+                <button key={i} className="chip" onClick={() => setDir({ ...VACIA, ...d, numero: d.numero || '' })}>Usar {d.calle}{d.numero ? ` ${d.numero}` : ''} · CP {d.cp}</button>))}</div>}
               <div className="field" style={{ marginTop: 0 }}><label htmlFor="co-calle">Calle</label><input id="co-calle" className="inp" maxLength={120} autoComplete="address-line1" value={dir.calle} onChange={sd('calle')} /></div>
               <div className="two"><div className="field"><label htmlFor="co-num">Número <span className="mute">(ext. e int.)</span></label><input id="co-num" className="inp" maxLength={20} value={dir.numero} onChange={sd('numero')} /></div>
                 <div className="field"><label htmlFor="co-col">Colonia</label><input id="co-col" className="inp" maxLength={80} value={dir.colonia} onChange={sd('colonia')} /></div></div>
@@ -240,6 +267,9 @@ export default function Checkout() {
               <span className="ic"><CreditCard size={18} /></span><span className="t"><b>Tarjeta o SPEI con Mercado Pago</b><small>Pagas en la página segura de Mercado Pago. Apartamos tus piezas mientras pagas.</small></span></button>
             <button className={'opt ' + (metodo === 'transferencia' ? 'on' : '')} onClick={() => setMetodo('transferencia')}>
               <span className="ic"><Landmark size={18} /></span><span className="t"><b>Transferencia directa</b><small>Te damos la CLABE y apartamos tus piezas 24 horas mientras validamos tu pago.</small></span></button>
+            {conCuenta && ptsMax > 0 && <label className={'opt ' + (usarPuntos ? 'on' : '')} style={{ cursor: 'pointer' }}>
+              <span className="ic"><input type="checkbox" checked={usarPuntos} onChange={(e) => setUsarPuntos(e.target.checked)} aria-label="Usar mis puntos" /></span>
+              <span className="t"><b>Usar {ptsMax} de mis {cuenta.datos.saldo} puntos</b><small>Descuento de {mxn(descuentoDe(ptsMax, reglas))} sobre tus productos (hasta el {reglas.max_pct}%).</small></span></label>}
             {sinSku && <p className="err" role="alert">Uno de los artículos de tu bolsa es de una versión anterior de la tienda. Quítalo y vuelve a agregarlo.</p>}
             <div style={{ marginTop: 22 }}><Turnstile ref={ts} accion="pedido" alCambiar={setToken} /></div>
             {error && <p className="err" role="alert">{error}</p>}
@@ -259,6 +289,7 @@ export default function Checkout() {
           <div style={{ borderTop: '1px solid var(--line)', margin: '12px 0' }} />
           <div className="sum"><span>Subtotal</span><span className="mono">{mxn(sub)}</span></div>
           <div className="sum"><span>Envío</span><span className="mono">{paso < 1 || envio === null ? '—' : envio === 0 ? 'Gratis' : mxn(envio)}</span></div>
+          {descuento > 0 && <div className="sum"><span>Puntos ({puntos})</span><span className="mono">−{mxn(descuento)}</span></div>}
           <div className="sum t"><span>Total</span><span className="mono">{mxn(total)}</span></div>
           {totalServidor !== null && <p className="note" style={{ marginTop: 8 }}>Total actualizado por la tienda.</p>}
         </aside>

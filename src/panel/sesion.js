@@ -14,6 +14,7 @@ const mensaje = (e) => {
   if (/invalid login credentials/i.test(m)) return 'Correo o contraseña incorrectos.';
   if (/invalid (totp )?code|invalid mfa|code.*(expired|invalid)/i.test(m)) return 'El código no es válido o ya expiró. Usa el que aparece ahora en tu app.';
   if (/rate limit|too many/i.test(m)) return 'Demasiados intentos. Espera un momento.';
+  if (/captcha/i.test(m)) return 'No pudimos verificar que eres una persona. Vuelve a intentarlo.';
   return 'No se pudo completar. Intenta de nuevo.';
 };
 
@@ -43,9 +44,9 @@ export const useSesion = create((set, get) => ({
     set(perfil?.rol ? { estado: 'dentro', usuario: session.user, rol: perfil.rol, error: null, motivoSalida: null } : { estado: 'sin_acceso', usuario: session.user, rol: null });
   },
 
-  async entrar(correo, contrasena) {
+  async entrar(correo, contrasena, captchaToken) {
     set({ error: null });
-    const { error } = await supabase.auth.signInWithPassword({ email: correo.trim(), password: contrasena });
+    const { error } = await supabase.auth.signInWithPassword({ email: correo.trim(), password: contrasena, options: { captchaToken } });
     if (error) return set({ error: mensaje(error) });
     await get().evaluar();
   },

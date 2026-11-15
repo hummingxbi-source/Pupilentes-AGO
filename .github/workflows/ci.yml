@@ -106,8 +106,8 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
-      - name: Levantar Supabase (BD, Auth, API y funciones)
-        run: supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
+      - name: Levantar Supabase (BD, Auth con Turnstile de prueba, API, funciones y Mailpit para los códigos por correo)
+        run: supabase start -x realtime,storage-api,imgproxy,postgres-meta,studio,logflare,vector,supavisor
       - name: Secrets de las funciones (solo prueba)
         run: |
           MP_WEBHOOK_SECRET=$(openssl rand -hex 24)   # se generan en cada corrida
@@ -166,7 +166,7 @@ jobs:
           echo "las funciones no arrancaron"; cat "$RUNNER_TEMP/funciones.log"; exit 1
       - name: El contenedor de funciones alcanza al simulador
         run: docker exec "$(docker ps --filter name=edge_runtime -q | head -1)" sh -c 'getent hosts host.docker.internal || true'
-      - name: tests/seguridad (pedidos, pagos, envíos, Mercado Libre, TikTok, rastreo, panel con MFA)
+      - name: tests/seguridad (pedidos, pagos, envíos, Mercado Libre, TikTok, rastreo, panel con MFA, cuenta y puntos)
         run: |
           eval "$(supabase status -o env | sed 's/^/export /')"
           export SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY:-$ANON_KEY}" SUPABASE_SECRET_KEY="${SECRET_KEY:-$SERVICE_ROLE_KEY}"
@@ -179,5 +179,6 @@ jobs:
           echo "::group::envia simulado"; tail -n 100 "$RUNNER_TEMP/envia.log"; echo "::endgroup::"
           echo "::group::ml simulado"; tail -n 100 "$RUNNER_TEMP/ml.log"; echo "::endgroup::"
           echo "::group::tiktok simulado"; tail -n 100 "$RUNNER_TEMP/tt.log"; echo "::endgroup::"
+          echo "::group::auth (GoTrue)"; docker logs "$(docker ps --filter name=supabase_auth -q | head -1)" 2>&1 | tail -n 100; echo "::endgroup::"
 
   # e2e: se activa en la Fase 8 (Playwright, solo en PR a main).

@@ -19,7 +19,10 @@ Deno.test('cron-conciliar: secreto, método y latido', async () => {
   Deno.env.set('CRON_SECRET', SECRETO);
   const llamadas: string[] = [];
   const admin = {
-    rpc: async (nombre: string) => { llamadas.push(nombre); return { data: nombre === 'limpiar_limites_tasa' ? 4 : null, error: null }; },
+    rpc: async (nombre: string) => {
+      llamadas.push(nombre);
+      return { data: nombre === 'limpiar_limites_tasa' ? 4 : nombre === 'revisar_salud' ? { bd_mb: 12.5, alertas_nuevas: [] } : null, error: null };
+    },
   } as unknown as SupabaseClient;
 
   assert.equal((await cron(new Request('http://x', { method: 'GET' }), admin)).status, 405);
@@ -28,7 +31,9 @@ Deno.test('cron-conciliar: secreto, método y latido', async () => {
 
   const r = await cron(new Request('http://x', { method: 'POST', headers: { 'x-cron-secret': SECRETO } }), admin);
   assert.equal(r.status, 200);
-  assert.equal((await r.json()).limites_borrados, 4);
-  assert.deepEqual(llamadas, ['liberar_reservas_vencidas', 'limpiar_limites_tasa', 'limpiar_payloads_viejos', 'limpiar_cotizaciones_viejas', 'registrar_latido']);
+  const d = await r.json();
+  assert.equal(d.limites_borrados, 4);
+  assert.equal(d.salud.bd_mb, 12.5, 'Fase 8: el latido lleva el tamaño de la BD');
+  assert.deepEqual(llamadas, ['liberar_reservas_vencidas', 'limpiar_limites_tasa', 'limpiar_payloads_viejos', 'limpiar_cotizaciones_viejas', 'revisar_salud', 'registrar_latido']);
   Deno.env.delete('CRON_SECRET');
 });

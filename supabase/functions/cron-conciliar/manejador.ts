@@ -8,6 +8,8 @@
 //         de las últimas 48 h aunque se haya perdido el aviso y publica el stock de la cola (si la
 //         sincronización está activa). Un error de ML no detiene el resto del cron.
 // Fase 6: TikTok Shop — lo mismo que ML (token, órdenes de 48 h y cola de publicación).
+// Fase 8: alertas completas — tamaño de la BD, respaldo atrasado (revisar_salud) y paso de canal
+//         fallido (alerta_conciliacion). No se repiten mientras haya una igual sin atender.
 
 import { clienteServicio, exigirSecretoCron } from '../_shared/auth.ts';
 import { json, respuestaDeError } from '../_shared/http.ts';
@@ -31,6 +33,9 @@ const TITULOS: Record<string, string> = {
   envio_incidencia: 'Problema con un envío (devolución, intento fallido o extravío)',
   envio_no_entregar: 'Un pedido "no entregar" va en camino',
   envio_desconocido: 'Aviso de Envia de una guía que no conocemos',
+  bd_grande: 'La base de datos pasa de 400 MB: hay que decidir el plan de Supabase',
+  respaldo_atrasado: 'El respaldo diario no ha corrido en más de 36 horas',
+  conciliacion_fallida: 'La conciliación con Mercado Libre o TikTok está fallando',
 };
 const escapar = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -111,11 +116,17 @@ export async function manejar(req: Request, admin = clienteServicio(), fetchFn: 
 
     const mercadolibre = await pasoML(admin, ml);
     const tiktok = await pasoTikTok(admin, tt);
+    for (const [canal, r] of [['ml', mercadolibre], ['tiktok', tiktok]] as const) {
+      if (r && 'error' in r) await admin.rpc('alerta_conciliacion', { p_canal: canal, p_error: r.error });
+    }
+    // Fase 8: si la revisión falla no se detiene el cron (el latido lo deja ver)
+    const { data: salud, error: e5 } = await admin.rpc('revisar_salud');
+    if (e5) console.error('revisar_salud', e5.message);
 
     let alertas = 0;
     try { alertas = await avisarPorCorreo(admin, fetchFn); } catch (e) { console.error('alertas', e instanceof Error ? e.message : e); }
 
-    const detalle = { reservas_liberadas: liberados ?? 0, limites_borrados: limpiadas ?? 0, payloads_borrados: payloads ?? 0, cotizaciones_borradas: cotizaciones ?? 0, alertas_enviadas: alertas, ...(mercadolibre ? { mercadolibre } : {}), ...(tiktok ? { tiktok } : {}), ms: Date.now() - inicio };
+    const detalle = { reservas_liberadas: liberados ?? 0, limites_borrados: limpiadas ?? 0, payloads_borrados: payloads ?? 0, cotizaciones_borradas: cotizaciones ?? 0, alertas_enviadas: alertas, ...(salud ? { salud } : {}), ...(mercadolibre ? { mercadolibre } : {}), ...(tiktok ? { tiktok } : {}), ms: Date.now() - inicio };
     const { error: e2 } = await admin.rpc('registrar_latido', { p_nombre: 'cron-conciliar', p_detalle: detalle });
     if (e2) throw new Error('registrar_latido: ' + e2.message);
 
