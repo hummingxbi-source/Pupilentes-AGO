@@ -928,3 +928,13 @@ table.inv{border-collapse:separate;border-spacing:0;font:400 13px var(--mono);mi
 .tabla-prev tr.mal td{color:var(--bad);background:rgba(180,71,47,.06)}
 .inv-btn{padding:6px 10px;border-radius:8px;font-size:13px}
 .inv-btn.z{color:var(--mute-2)}.inv-btn.lo{color:var(--gold-d);background:var(--gold-xl)}
+
+/* Fase 3 · detalle de pedido en el panel */
+.om-datos{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:16px 0 4px;font-size:14px}
+.om-datos dt{color:var(--mute)}
+.om-datos dd{margin:0;overflow-wrap:anywhere}
+.om-acciones{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.om-confirma{margin-top:12px;padding:14px;border:1px solid var(--bad);border-radius:var(--r);display:grid;gap:10px;font-size:14px}
+.pn-alertas{border-color:var(--gold-l)}
+.pn-alertas .ic{background:var(--ink);color:var(--gold-l)}
+.turnstile{min-height:65px}

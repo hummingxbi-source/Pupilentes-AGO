@@ -62,6 +62,34 @@ node scripts/cuentas-panel.mjs quitar --correo exayudante@ejemplo.mx
 ```
 Al entrar a `/panel` por primera vez se da de alta la app autenticadora (Google o Microsoft Authenticator).
 
+### Compras y pagos en local (Fase 3)
+Sin cuenta de Mercado Pago se usa un **Mercado Pago simulado** que manda los avisos firmados igual que el real:
+```bash
+# 1) En supabase/functions/.env (además de lo de .env.example):
+#    MP_ACCESS_TOKEN=TEST-local  MP_WEBHOOK_SECRET=<cualquier texto largo>
+#    MP_API_URL=http://host.docker.internal:8090      (las funciones corren en Docker)
+#    MP_NOTIFICATION_URL=http://127.0.0.1:55321/functions/v1/webhook-mercadopago
+# 2) En otra terminal, con el MISMO secreto:
+MP_SIM_HOST=0.0.0.0 MP_WEBHOOK_SECRET=<el mismo> MP_NOTIFICATION_URL=http://127.0.0.1:55321/functions/v1/webhook-mercadopago node scripts/mp-simulado.mjs
+# 3) supabase functions serve  +  npm run dev  → compra en /checkout; MP simulado deja elegir aprobado, rechazado o SPEI.
+#    Acreditar un SPEI pendiente: curl -X POST -d '{"status":"approved"}' http://127.0.0.1:8090/simular/pagos/<payment_id>
+```
+**Envíos (Fase 4)** sin cuenta de Envia: simulador local, igual que MP.
+```bash
+# supabase/functions/.env:  ENVIA_TOKEN=TEST-local  ENVIA_API_URL=http://host.docker.internal:8091  ENVIA_WEBHOOK_SECRET=<24+ caracteres>
+MP_SIM_HOST=0.0.0.0 ENVIA_WEBHOOK_URL="http://127.0.0.1:55321/functions/v1/webhook-envia?s=<el mismo secreto>" node scripts/envia-simulado.mjs
+# Mover una guía:  curl -X POST -d '{"trackingNumber":"SIM100001","status":"In transit"}' http://127.0.0.1:8091/simular/rastreo
+```
+
+Con credenciales de **prueba** reales de MP: deja `MP_API_URL` vacío, pon el access token de prueba y la clave secreta del webhook, y expón `webhook-mercadopago` con una URL https pública (MP no llama a `localhost`).
+
+Con eso arriba también corren las pruebas de seguridad de la Fase 3 (las mismas del trabajo `integracion` del CI):
+```bash
+eval "$(supabase status -o env | sed 's/^/export /')"
+SUPABASE_URL=$API_URL SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY SUPABASE_SECRET_KEY=$SECRET_KEY node --test --test-concurrency=1 "tests/seguridad/*.test.mjs"
+```
+Usan `TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA` (la de prueba de `.env.example`) y crean cuentas de panel de prueba con MFA real en tu BD local.
+
 ### Pruebas (las mismas que corre el CI en cada push)
 ```bash
 npm run lint                                   # ESLint

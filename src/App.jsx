@@ -78,7 +78,7 @@ export default function App() {
           <Route path="/tono" element={<Shop dark bare><Tono /></Shop>} />
           <Route path="/probador" element={<Shop><Probador /></Shop>} />
           <Route path="/cuenta" element={<Shop><Cuenta /></Shop>} />
-          <Route path="/pedido/:folio?" element={<Shop><Pedido /></Shop>} />
+          <Route path="/pedido/:clave?" element={<Shop><Pedido /></Shop>} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/panel/*" element={<Panel />} />
         </Routes>

@@ -32,3 +32,16 @@ export function igualesSeguro(a: string, b: string): boolean {
   for (let i = 0; i < n; i++) dif |= (ea[i] ?? 0) ^ (eb[i] ?? 0);
   return dif === 0;
 }
+
+/**
+ * Traduce los errores de negocio de las funciones SQL (raise exception '<codigo>' using errcode P0001)
+ * a respuestas 4xx con un mensaje para la clienta. Lo que no esté en el mapa es un 500.
+ */
+export function errorDeBd(
+  error: { message: string; details?: string | null; code?: string } | null,
+  mapa: Record<string, [number, string]>, contexto: string,
+): never {
+  const m = error?.message ?? '';
+  if (mapa[m]) throw new ErrorHttp(mapa[m][0], m, mapa[m][1]);
+  throw new Error(`${contexto}: ${m || 'sin detalle'}`);
+}
