@@ -9,6 +9,9 @@ export async function cargarEntregas() {
   return data.map((t) => ({ ...t, costo: Number(t.costo) }));
 }
 
+/** Opciones de paquetería (Envia.com). El servidor guarda cada opción; el pedido solo manda su id. */
+export const cotizarEnvio = (items, destino, turnstile) => llamarFuncion('envios-cotizar', { cuerpo: { items, destino, turnstile }, señal: AbortSignal.timeout(25000) });
+
 export const crearPedido = (datos) => llamarFuncion('pedidos-crear', { cuerpo: datos, señal: AbortSignal.timeout(25000) });
 export const rastrearPorToken = (token) => llamarFuncion('pedidos-rastrear', { cuerpo: { token }, señal: AbortSignal.timeout(10000) });
 export const rastrearPorFolio = (folio, tel4, turnstile) => llamarFuncion('pedidos-rastrear', { cuerpo: { folio, tel4, turnstile }, señal: AbortSignal.timeout(10000) });

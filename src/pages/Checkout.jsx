@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, Check, Lock, CreditCard, Landmark, ShieldCheck }
 import { useStore } from '../lib/store';
 import { mxn } from '../lib/catalog';
 import { useProductos } from '../lib/tienda';
-import { cargarEntregas, crearPedido } from '../lib/pedidos';
+import { cargarEntregas, cotizarEnvio, crearPedido } from '../lib/pedidos';
 import { Turnstile } from '../lib/Turnstile';
 import { LOGO, TLink, Iris } from '../ui';
 
@@ -22,10 +22,10 @@ const TIPOS = [
   { id: 'metro', nombre: 'Entrega en Metro', detalle: 'Pantitlán o Tepalcates, con cita', icon: 'M' },
   { id: 'metro_otra', nombre: 'Otra estación de Metro', detalle: 'Costo extra por traslado', icon: 'M+' },
   { id: 'didi', nombre: 'Envío por DiDi', detalle: 'Mismo día en CDMX y zona oriente', icon: 'D' },
-  { id: 'paqueteria', nombre: 'Paquetería a todo México', detalle: 'Guía con rastreo', icon: 'P' },
+  { id: 'paqueteria', nombre: 'Paquetería a todo México', detalle: 'Guía con rastreo · se cotiza con tu código postal', icon: 'P', cotiza: true },
 ];
 const nuevaClave = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}-pedido`);
-const VACIA = { calle: '', colonia: '', ciudad: '', estado: '', cp: '', referencias: '' };
+const VACIA = { calle: '', numero: '', colonia: '', ciudad: '', estado: '', cp: '', referencias: '' };
 
 export default function Checkout() {
   const { bolsa, vaciar } = useStore();
@@ -37,11 +37,18 @@ export default function Checkout() {
   const [contacto, setContacto] = useState({ nombre: '', telefono: '', correo: '' });
   const [tarifas, setTarifas] = useState(null);
   const [tipo, setTipo] = useState('metro');
-  const [zona, setZona] = useState({ metro: 'Pantitlán', metro_otra: 'Otra estación', didi: 'Iztacalco', paqueteria: 'Estándar' });
+  const [zona, setZona] = useState({ metro: 'Pantitlán', metro_otra: 'Otra estación', didi: 'Iztacalco' });
   const [cita, setCita] = useState({ dia: 0, hora: '15:30', estacion: '' });
   const [dir, setDir] = useState(VACIA);
   const [metodo, setMetodo] = useState('mercadopago');
   const [token, setToken] = useState(null);
+  // Paquetería (Fase 4): opciones cotizadas por el servidor con Envia.com
+  const tsEnvio = useRef();
+  const [tokenEnvio, setTokenEnvio] = useState(null);
+  const [opciones, setOpciones] = useState(null);
+  const [opcion, setOpcion] = useState(null);
+  const [cotizando, setCotizando] = useState(false);
+  const [errorEnvio, setErrorEnvio] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const [totalServidor, setTotalServidor] = useState(null);   // si el servidor dice que el total cambió
@@ -51,7 +58,9 @@ export default function Checkout() {
   useGSAP(() => { gsap.from('.co-step > *', { y: 30, opacity: 0, stagger: 0.05, duration: 0.8, ease: 'expo.out', clearProps: 'transform' }); }, { scope: root, dependencies: [paso] });
   useEffect(() => { cargarEntregas().then(setTarifas).catch(() => setTarifas([])); }, []);
   // Cambió algo del pedido → es un pedido distinto (otra clave) y el aviso de total ya no aplica
-  useEffect(() => { clave.current = nuevaClave(); setTotalServidor(null); }, [tipo, zona, metodo, bolsa]);
+  useEffect(() => { clave.current = nuevaClave(); setTotalServidor(null); }, [tipo, zona, metodo, bolsa, opcion]);
+  // La cotización vale para ese CP y esas piezas: si cambian, hay que volver a cotizar
+  useEffect(() => { setOpciones(null); setOpcion(null); }, [dir.cp, bolsa]);
 
   const items = useMemo(() => {
     const m = new Map();
@@ -62,24 +71,49 @@ export default function Checkout() {
 
   if (!bolsa.length) return <main className="co"><div className="wrap empty"><p className="h-m" style={{ marginBottom: 16 }}>Tu bolsa está vacía</p><TLink className="btn" to="/tienda">Ir a la tienda</TLink></div></main>;
 
-  const tarifa = tarifas?.find((t) => t.tipo === tipo && t.zona === zona[tipo]);
+  const tarifa = tipo === 'paqueteria'
+    ? (opcion ? { tipo, zona: 'Paquetería', costo: opcion.precio, detalle: opcion.entrega ? `Entrega estimada: ${opcion.entrega}` : null } : null)
+    : tarifas?.find((t) => t.tipo === tipo && t.zona === zona[tipo]);
   const zonasDe = (t) => (tarifas ?? []).filter((x) => x.tipo === t);
   const sub = bolsa.reduce((a, b) => a + b.precio * b.cant, 0);
   const envio = tarifa?.costo ?? null;
   const total = totalServidor ?? sub + (envio ?? 0);
-  const necesitaDir = tipo === 'didi' || tipo === 'paqueteria';
+  const necesitaDir = tipo === 'didi';   // paquetería tiene su propio formulario (Fase 4)
   const telOk = contacto.telefono.replace(/\D/g, '').length === 10;
   const correoOk = !contacto.correo || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contacto.correo);
   const datosOk = contacto.nombre.trim().length >= 2 && telOk && correoOk;
+  const dirPaqOk = dir.calle.trim().length >= 3 && dir.colonia.trim().length >= 2 && dir.ciudad.trim().length >= 2 && dir.estado.trim().length >= 2 && /^\d{5}$/.test(dir.cp);
   const entregaOk = tarifa && (tipo !== 'metro_otra' || cita.estacion.trim()) &&
-    (!necesitaDir || (dir.calle.trim() && dir.colonia.trim() && (tipo === 'didi' || (dir.ciudad.trim() && dir.estado.trim() && /^\d{5}$/.test(dir.cp)))));
+    (tipo === 'paqueteria' ? dirPaqOk && !!opcion : !necesitaDir || (dir.calle.trim() && dir.colonia.trim()));
+
+  const cotizar = async () => {
+    if (!tokenEnvio || cotizando || !dirPaqOk) return;
+    setCotizando(true); setErrorEnvio(''); setOpcion(null);
+    try {
+      const r = await cotizarEnvio(items, { cp: dir.cp, ciudad: dir.ciudad.trim(), estado: dir.estado.trim(), colonia: dir.colonia.trim() }, tokenEnvio);
+      setOpciones(r.opciones || []);
+      if (!r.opciones?.length) setErrorEnvio('No hay paqueterías disponibles para ese código postal.');
+    } catch (e) {
+      setOpciones(null); setErrorEnvio(e.message || 'No pudimos cotizar el envío. Inténtalo de nuevo.');
+    } finally {
+      setCotizando(false); tsEnvio.current?.reiniciar();   // cada token sirve una vez
+    }
+  };
 
   const entrega = () => {
+    if (tipo === 'paqueteria') {
+      const d = { calle: dir.calle.trim(), colonia: dir.colonia.trim(), ciudad: dir.ciudad.trim(), estado: dir.estado.trim(), cp: dir.cp };
+      if (dir.numero.trim()) d.numero = dir.numero.trim().slice(0, 20);
+      const e = { tipo, zona: 'Paquetería', cotizacion: opcion.id, direccion_envio: d,
+        direccion: [`${d.calle}${d.numero ? ' ' + d.numero : ''}`, d.colonia, d.ciudad, d.estado, `CP ${d.cp}`].join(', ').slice(0, 300) };
+      if (dir.referencias.trim()) e.referencias = dir.referencias.trim().slice(0, 200);
+      return e;
+    }
     const e = { tipo, zona: zona[tipo] };
     if (tipo === 'metro') e.cita = `Metro ${zona.metro} · ${fmtDia(ds[cita.dia])} · ${cita.hora}`;
     if (tipo === 'metro_otra') e.cita = `Metro ${cita.estacion.trim()} · ${fmtDia(ds[cita.dia])} · ${cita.hora}`;
     if (necesitaDir) {
-      e.direccion = [dir.calle, dir.colonia, tipo === 'didi' ? zona.didi : dir.ciudad, tipo === 'paqueteria' ? dir.estado : '', dir.cp && `CP ${dir.cp}`].map((x) => x.trim()).filter(Boolean).join(', ').slice(0, 300);
+      e.direccion = [`${dir.calle.trim()}${dir.numero.trim() ? ' ' + dir.numero.trim() : ''}`, dir.colonia, zona.didi].map((x) => x.trim()).filter(Boolean).join(', ').slice(0, 300);
       if (dir.referencias.trim()) e.referencias = dir.referencias.trim().slice(0, 200);
     }
     return e;
@@ -101,6 +135,9 @@ export default function Checkout() {
       if (e.codigo === 'total_cambio' && Number.isFinite(e.datos?.total)) {
         setTotalServidor(e.datos.total);
         setError(`El total cambió a ${mxn(e.datos.total)} (precio o envío actualizados). Revísalo y vuelve a confirmar.`);
+      } else if (['cotizacion_vencida', 'cotizacion_no_coincide'].includes(e.codigo)) {
+        setOpciones(null); setOpcion(null); setPaso(1);
+        setErrorEnvio(e.message);
       } else {
         setError(e.message || 'No pudimos crear tu pedido. Inténtalo de nuevo.');
         if (e.estado === 502 || e.estado === 0) clave.current = nuevaClave();   // MP no respondió: el pedido se canceló
@@ -142,16 +179,38 @@ export default function Checkout() {
             <h1 className="h-l" style={{ margin: '26px 0 24px' }}>¿Cómo lo quieres <span className="it gold">recibir?</span></h1>
             {!tarifas && <p className="mute" role="status">Cargando opciones de entrega…</p>}
             {tarifas?.length === 0 && <p className="err" role="alert">No pudimos cargar las opciones de entrega. Recarga la página.</p>}
-            {tarifas?.length > 0 && TIPOS.filter((t) => zonasDe(t.id).length).map((t) => {
+            {tarifas && TIPOS.filter((t) => t.cotiza || zonasDe(t.id).length).map((t) => {
               const costos = zonasDe(t.id).map((x) => x.costo);
               const min = Math.min(...costos), max = Math.max(...costos);
               return (
                 <button key={t.id} className={'opt ' + (tipo === t.id ? 'on' : '')} onClick={() => setTipo(t.id)}>
                   <span className="ic">{t.icon}</span><span className="t"><b>{t.nombre}</b><small>{t.detalle}</small></span>
-                  <span className="c">{max === 0 ? 'Gratis' : min === max ? `+${mxn(min)}` : `desde ${mxn(min)}`}</span>
+                  <span className="c">{t.cotiza ? (opcion ? `+${mxn(opcion.precio)}` : 'Cotizar') : max === 0 ? 'Gratis' : min === max ? `+${mxn(min)}` : `desde ${mxn(min)}`}</span>
                 </button>);
             })}
-            {tarifa && <div className="box" style={{ marginTop: 18 }}>
+            {tipo === 'paqueteria' && <div className="box" style={{ marginTop: 18 }}>
+              <div className="field" style={{ marginTop: 0 }}><label htmlFor="co-calle">Calle</label><input id="co-calle" className="inp" maxLength={120} autoComplete="address-line1" value={dir.calle} onChange={sd('calle')} /></div>
+              <div className="two"><div className="field"><label htmlFor="co-num">Número <span className="mute">(ext. e int.)</span></label><input id="co-num" className="inp" maxLength={20} value={dir.numero} onChange={sd('numero')} /></div>
+                <div className="field"><label htmlFor="co-col">Colonia</label><input id="co-col" className="inp" maxLength={80} value={dir.colonia} onChange={sd('colonia')} /></div></div>
+              <div className="two"><div className="field"><label htmlFor="co-cp">Código postal</label><input id="co-cp" className="inp mono" inputMode="numeric" autoComplete="postal-code" value={dir.cp} onChange={sd('cp')} /></div>
+                <div className="field"><label htmlFor="co-ciu">Ciudad o municipio</label><input id="co-ciu" className="inp" maxLength={60} autoComplete="address-level2" value={dir.ciudad} onChange={sd('ciudad')} /></div></div>
+              <div className="field"><label htmlFor="co-edo">Estado</label><input id="co-edo" className="inp" maxLength={40} autoComplete="address-level1" value={dir.estado} onChange={sd('estado')} /></div>
+              <div className="field"><label htmlFor="co-ref">Referencias <span className="mute">(opcional)</span></label><input id="co-ref" className="inp" maxLength={200} value={dir.referencias} onChange={sd('referencias')} placeholder="Portón negro, entre calles…" /></div>
+              {!opciones && <>
+                <div style={{ marginTop: 14 }}><Turnstile ref={tsEnvio} accion="cotizar" alCambiar={setTokenEnvio} /></div>
+                <button className="btn full" style={{ marginTop: 12 }} disabled={!dirPaqOk || !tokenEnvio || cotizando} onClick={cotizar}>{cotizando ? 'Cotizando…' : 'Ver opciones de envío'}</button>
+              </>}
+              {opciones?.length > 0 && <div className="field"><label>Elige la paquetería</label>
+                {opciones.map((o) => (
+                  <button key={o.id} className={'opt ' + (opcion?.id === o.id ? 'on' : '')} onClick={() => setOpcion(o)}>
+                    <span className="t"><b style={{ textTransform: 'capitalize' }}>{o.carrier} · {o.descripcion || o.servicio}</b><small>{o.entrega || 'Entrega según la paquetería'}</small></span>
+                    <span className="c">{mxn(o.precio)}</span>
+                  </button>))}
+                <button className="mute" style={{ fontSize: 13, marginTop: 6 }} onClick={() => { setOpciones(null); setOpcion(null); }}>Cambiar dirección o volver a cotizar</button>
+              </div>}
+              {errorEnvio && <p className="err" role="alert">{errorEnvio}</p>}
+            </div>}
+            {tarifa && tipo !== 'paqueteria' && <div className="box" style={{ marginTop: 18 }}>
               {(tipo === 'metro' || tipo === 'metro_otra') && (<>
                 {tipo === 'metro'
                   ? <div className="seg">{zonasDe('metro').map((s) => <button key={s.zona} className={zona.metro === s.zona ? 'on' : ''} onClick={() => setZona({ ...zona, metro: s.zona })}>Metro {s.zona}</button>)}</div>
@@ -164,15 +223,11 @@ export default function Checkout() {
                 <div className="field" style={{ marginTop: 0 }}><label htmlFor="co-alc">Alcaldía o municipio</label>
                   <select id="co-alc" className="inp" value={zona.didi} onChange={(e) => setZona({ ...zona, didi: e.target.value })}>{zonasDe('didi').map((a) => <option key={a.zona} value={a.zona}>{a.zona} · {mxn(a.costo)}</option>)}</select></div>
               </>)}
-              {tipo === 'paqueteria' && (
-                <div className="seg">{zonasDe('paqueteria').map((s) => <button key={s.zona} className={zona.paqueteria === s.zona ? 'on' : ''} onClick={() => setZona({ ...zona, paqueteria: s.zona })}>{s.zona} · {mxn(s.costo)}</button>)}</div>
-              )}
               {tarifa.detalle && <p className="note">{tarifa.detalle}</p>}
               {necesitaDir && (<>
                 <div className="field"><label htmlFor="co-calle">Calle y número</label><input id="co-calle" className="inp" maxLength={120} autoComplete="address-line1" value={dir.calle} onChange={sd('calle')} /></div>
                 <div className="two"><div className="field"><label htmlFor="co-col">Colonia</label><input id="co-col" className="inp" maxLength={80} value={dir.colonia} onChange={sd('colonia')} /></div>
-                  {tipo === 'paqueteria' && <div className="field"><label htmlFor="co-cp">Código postal</label><input id="co-cp" className="inp mono" inputMode="numeric" autoComplete="postal-code" value={dir.cp} onChange={sd('cp')} /></div>}</div>
-                {tipo === 'paqueteria' && <div className="two"><div className="field"><label htmlFor="co-ciu">Ciudad o municipio</label><input id="co-ciu" className="inp" maxLength={60} autoComplete="address-level2" value={dir.ciudad} onChange={sd('ciudad')} /></div><div className="field"><label htmlFor="co-edo">Estado</label><input id="co-edo" className="inp" maxLength={40} autoComplete="address-level1" value={dir.estado} onChange={sd('estado')} /></div></div>}
+                </div>
                 <div className="field"><label htmlFor="co-ref">Referencias <span className="mute">(opcional)</span></label><input id="co-ref" className="inp" maxLength={200} value={dir.referencias} onChange={sd('referencias')} placeholder="Portón negro, entre calles…" /></div>
               </>)}
             </div>}

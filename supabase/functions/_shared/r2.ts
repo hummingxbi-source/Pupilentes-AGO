@@ -47,6 +47,11 @@ export function clienteR2(c: ConfigR2) {
       if (!g.ok) throw new Error(`R2 GET ${g.status}`);
       return { bytes: Number(h.headers.get('content-length') ?? 0), inicio: new Uint8Array(await g.arrayBuffer()) };
     },
+    /** Sube un archivo desde el servidor (p. ej. la guía PDF de Envia al bucket privado). */
+    async subir(clave: string, cuerpo: Uint8Array<ArrayBuffer>, contentType: string): Promise<void> {
+      const r = await aws.fetch(url(clave), { method: 'PUT', body: cuerpo, headers: { 'Content-Type': contentType } });
+      if (!r.ok) throw new Error(`R2 PUT ${r.status}`);
+    },
     async borrar(clave: string): Promise<void> {
       const r = await aws.fetch(url(clave), { method: 'DELETE' });
       if (!r.ok && r.status !== 404) throw new Error(`R2 DELETE ${r.status}`);

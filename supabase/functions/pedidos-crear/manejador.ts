@@ -28,8 +28,14 @@ const Cuerpo = z.object({
     tipo: z.enum(['metro', 'metro_otra', 'didi', 'paqueteria']),
     zona: texto(80).min(1),
     cita: texto(120).optional(),          // "sábado 3 pm", estación, etc. (lo coordina WhatsApp)
-    direccion: texto(300).optional(),     // DiDi y paquetería
+    direccion: texto(300).optional(),     // DiDi y paquetería (texto para el panel)
     referencias: texto(200).optional(),
+    // Paquetería (Fase 4): la opción que eligió en envios-cotizar y la dirección completa para la guía
+    cotizacion: z.string().uuid().optional(),
+    direccion_envio: z.object({
+      calle: texto(120).min(3), numero: texto(20).optional(), colonia: texto(80).min(2),
+      ciudad: texto(60).min(2), estado: texto(40).min(2), cp: z.string().regex(/^[0-9]{5}$/),
+    }).strict().optional(),
   }).strict(),
   contacto: z.object({ nombre: texto(120).min(2), telefono: z.string().regex(/^[0-9 +()-]{10,20}$/), correo: z.string().email().max(254).optional().or(z.literal('')) }).strict(),
   total_visto: z.number().min(0).max(1_000_000),
@@ -43,6 +49,9 @@ const ERRORES: Record<string, [number, string]> = {
   demasiadas_piezas: [400, 'Puedes llevar hasta 5 pares de cada uno y 10 en total por pedido.'],
   demasiados_pendientes: [429, 'Ya tienes pedidos sin pagar con este teléfono. Págalos o espera a que venzan.'],
   entrega_invalida: [400, 'Elige una forma de entrega de la lista.'],
+  cotizacion_vencida: [409, 'La cotización del envío venció. Vuelve a cotizar.'],
+  cotizacion_no_coincide: [409, 'Tu bolsa o tu código postal cambiaron. Vuelve a cotizar el envío.'],
+  direccion_invalida: [400, 'Completa calle, colonia, código postal, ciudad y estado.'],
   contacto_invalido: [400, 'Revisa tu nombre, teléfono (10 dígitos) y correo.'],
   metodo_invalido: [400, 'Elige cómo pagar.'],
   sin_items: [400, 'Tu bolsa está vacía.'],

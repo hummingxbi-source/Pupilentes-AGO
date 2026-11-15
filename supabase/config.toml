@@ -450,3 +450,11 @@ verify_jwt = false
 [functions.webhook-mercadopago]
 verify_jwt = false
 [functions.panel-pedidos]
+
+# Fase 4 · envíos. envios-cotizar la llama la caja (sin sesión, con Turnstile); envios-guia el panel (MFA);
+# webhook-envia lo llama Envia.com y se autentica con el secreto en la URL.
+[functions.envios-cotizar]
+verify_jwt = false
+[functions.envios-guia]
+[functions.webhook-envia]
+verify_jwt = false

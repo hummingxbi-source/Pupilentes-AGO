@@ -57,7 +57,7 @@ export async function historial(varianteId) {
 
 export async function cargarPedidos() {
   return exigir(await supabase.from('pedidos')
-    .select('id, folio, estado, pago_estado, metodo_pago, no_entregar, canal, contacto, subtotal, envio, total, entrega, creado_en, expira_reserva_en, clienta_id, pagos(proveedor, estado, estado_detalle, id_externo, comprobante_clave, creado_en), pedido_items(cantidad, precio_unitario, variante:variantes(sku, graduacion, duracion, tono:tonos(nombre), producto:productos(nombre)))')
+    .select('id, folio, estado, pago_estado, metodo_pago, no_entregar, canal, contacto, subtotal, envio, total, entrega, creado_en, expira_reserva_en, clienta_id, pagos(proveedor, estado, estado_detalle, id_externo, comprobante_clave, creado_en), envios(proveedor, servicio, guia, url_rastreo, estado, costo, creado_en), pedido_items(cantidad, precio_unitario, variante:variantes(sku, graduacion, duracion, tono:tonos(nombre), producto:productos(nombre)))')
     .order('creado_en', { ascending: false }).limit(300));
 }
 
@@ -76,6 +76,8 @@ export const aplicarCatalogo = (filas) => llamarFuncion('panel-catalogo', { cuer
 // --- Pedidos y alertas (Fase 3) ----------------------------------------------------
 /** Acciones sobre un pedido: validar_transferencia, estado, cancelar, reembolsar, comprobante (panel-pedidos). */
 export const accionPedido = (cuerpo) => llamarFuncion('panel-pedidos', { cuerpo });
+/** Guía de paquetería (envios-guia): generar | etiqueta. */
+export const accionGuia = (accion, pedido) => llamarFuncion('envios-guia', { cuerpo: { accion, pedido } });
 export async function cargarAlertas() { return exigir(await supabase.rpc('panel_alertas')); }
 export async function atenderAlerta(id) { return exigir(await supabase.rpc('panel_atender_alerta', { p_id: id })); }
 export const ALERTAS = {
@@ -84,7 +86,10 @@ export const ALERTAS = {
   contracargo: 'Contracargo: no entregues este pedido',
   reembolso: 'Mercado Pago registró un reembolso',
   pago_sin_pedido: 'Llegó un pago que no corresponde a ningún pedido',
-  webhook_fallido: 'Un aviso de pago no se pudo procesar (se reintenta solo)',
+  webhook_fallido: 'Un aviso (pago o envío) no se pudo procesar (se reintenta solo)',
+  envio_incidencia: 'Problema con un envío: devolución, intento fallido o extravío',
+  envio_no_entregar: 'Un pedido marcado "no entregar" va en camino: llama a la paquetería',
+  envio_desconocido: 'Llegó un aviso de Envia de una guía que no es nuestra',
   cron_sin_correr: 'Las tareas automáticas no corren desde hace más de 30 min',
 };
 

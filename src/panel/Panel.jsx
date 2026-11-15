@@ -9,7 +9,7 @@ import { useStore } from '../lib/store';
 import { LOGO, Iris } from '../ui';
 import Acceso from './Acceso';
 import { useSesion, iniciarSesionPanel } from './sesion';
-import { useConsulta, cargarPedidos, cargarVariantes, cargarAlertas, atenderAlerta, accionPedido, agrupar, ALERTAS, ESTADOS_PEDIDO } from './datos';
+import { useConsulta, cargarPedidos, cargarVariantes, cargarAlertas, atenderAlerta, accionPedido, accionGuia, agrupar, ALERTAS, ESTADOS_PEDIDO } from './datos';
 import { Inventario, Catalogo, Clientas } from './Gestion';
 
 export const waTo = (tel, txt) => `https://wa.me/52${String(tel).replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(txt)}`;
@@ -224,6 +224,14 @@ export function OrderModal({ p, onClose, onCambio }) {
   const hacer = async (cuerpo, etiqueta) => {
     setOcupado(etiqueta); setError(''); setConfirmar(null);
     try {
+      if (cuerpo.guia) {   // envios-guia (Fase 4)
+        const g = await accionGuia(cuerpo.guia, p.id);
+        const url = g.etiqueta ?? g.url;
+        if (url) window.open(url, '_blank', 'noopener');
+        if (cuerpo.guia === 'generar') { useStore.getState().notificar(`Guía ${g.guia} lista.`); onCambio?.(); onClose(); }
+        else if (!url) setError('La guía no tiene archivo descargable; búscala en tu cuenta de Envia.');
+        return;
+      }
       const r = await accionPedido({ pedido: p.id, ...cuerpo, ...(nota.trim() && cuerpo.accion !== 'comprobante' ? { nota: nota.trim() } : {}) });
       if (cuerpo.accion === 'comprobante') { window.open(r.url, '_blank', 'noopener'); return; }
       const stock = r.stock_devuelto ? ' Las piezas regresaron al inventario.' : '';
@@ -236,6 +244,8 @@ export function OrderModal({ p, onClose, onCambio }) {
     <button className={clase} disabled={!!ocupado} onClick={() => (peligro ? setConfirmar({ cuerpo, etiqueta }) : hacer(cuerpo, etiqueta))}>{ocupado === etiqueta ? 'Un momento…' : etiqueta}</button>
   );
   const e = p.estado;
+  const guia = (p.envios || []).filter((x) => x.proveedor === 'envia' && x.guia).sort((a, b) => b.creado_en.localeCompare(a.creado_en))[0];
+  const generando = (p.envios || []).some((x) => x.proveedor === 'envia' && x.estado === 'generando');
   const pagado = ['pagado', 'pagado_sin_stock', 'preparando', 'enviado', 'entregado'].includes(e);
 
   return (
@@ -260,6 +270,8 @@ export function OrderModal({ p, onClose, onCambio }) {
             {p.entrega?.direccion && <><dt>Dirección</dt><dd>{p.entrega.direccion}{p.entrega.referencias ? ` · ${p.entrega.referencias}` : ''}</dd></>}
             {tel && <><dt>WhatsApp</dt><dd className="mono">{tel}</dd></>}
             {p.contacto?.correo && <><dt>Correo</dt><dd>{p.contacto.correo}</dd></>}
+            {p.entrega?.tipo === 'paqueteria' && <><dt>Paquetería</dt><dd>{p.entrega.zona}{p.entrega.entrega_estimada ? ` · ${p.entrega.entrega_estimada}` : ''}</dd></>}
+            {guia && <><dt>Guía</dt><dd className="mono">{guia.url_rastreo ? <a href={guia.url_rastreo} target="_blank" rel="noreferrer">{guia.guia}</a> : guia.guia} · {guia.estado.replace('_', ' ')}</dd></>}
             {mp && <><dt>Mercado Pago</dt><dd>{ESTADO_MP[mp.estado] || mp.estado} · <span className="mono">#{mp.id_externo}</span></dd></>}
             {e === 'pendiente_pago' && p.expira_reserva_en && <><dt>Apartado hasta</dt><dd>{new Date(p.expira_reserva_en).toLocaleString('es-MX', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</dd></>}
           </dl>
@@ -270,6 +282,8 @@ export function OrderModal({ p, onClose, onCambio }) {
               <B cuerpo={{ accion: 'validar_transferencia', aprobar: false }} etiqueta="Rechazar pago" clase="btn sm ghost" peligro />
             </>)}
             {transf?.comprobante_clave && <B cuerpo={{ accion: 'comprobante' }} etiqueta="Ver comprobante" clase="btn sm ghost" />}
+            {p.entrega?.tipo === 'paqueteria' && ['pagado', 'preparando'].includes(e) && !guia && !generando && !p.no_entregar && <B cuerpo={{ guia: 'generar' }} etiqueta="Generar guía" clase="btn sm gold" />}
+            {guia && <B cuerpo={{ guia: 'etiqueta' }} etiqueta="Descargar guía" clase="btn sm ghost" />}
             {e === 'pagado' && <B cuerpo={{ accion: 'estado', nuevo: 'preparando' }} etiqueta="Marcar preparando" />}
             {['pagado', 'preparando'].includes(e) && !p.no_entregar && <B cuerpo={{ accion: 'estado', nuevo: 'entregado' }} etiqueta="Marcar entregado" clase="btn sm ghost" />}
             {e === 'enviado' && <B cuerpo={{ accion: 'estado', nuevo: 'entregado' }} etiqueta="Marcar entregado" />}

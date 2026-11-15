@@ -110,8 +110,10 @@ jobs:
         run: supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
       - name: Secrets de las funciones (solo prueba)
         run: |
-          MP_WEBHOOK_SECRET=$(openssl rand -hex 24)   # se genera en cada corrida
+          MP_WEBHOOK_SECRET=$(openssl rand -hex 24)   # se generan en cada corrida
+          ENVIA_WEBHOOK_SECRET=$(openssl rand -hex 24)
           echo "MP_WEBHOOK_SECRET=$MP_WEBHOOK_SECRET" >> "$GITHUB_ENV"
+          echo "ENVIA_WEBHOOK_SECRET=$ENVIA_WEBHOOK_SECRET" >> "$GITHUB_ENV"
           cat > "$RUNNER_TEMP/funciones.env" <<EOF
           ORIGENES_PERMITIDOS=http://localhost:5173
           CRON_SECRET=$CRON_SECRET
@@ -121,11 +123,17 @@ jobs:
           MP_WEBHOOK_SECRET=$MP_WEBHOOK_SECRET
           MP_NOTIFICATION_URL=$MP_NOTIFICATION_URL
           MP_API_URL=http://host.docker.internal:8090
+          ENVIA_TOKEN=TEST-ci
+          ENVIA_API_URL=http://host.docker.internal:8091
+          ENVIA_WEBHOOK_SECRET=$ENVIA_WEBHOOK_SECRET
           EOF
-      - name: Mercado Pago simulado
+      - name: Mercado Pago y Envia simulados
         run: |
           MP_SIM_HOST=0.0.0.0 nohup node scripts/mp-simulado.mjs > "$RUNNER_TEMP/mp.log" 2>&1 &
+          MP_SIM_HOST=0.0.0.0 ENVIA_WEBHOOK_URL="http://127.0.0.1:55321/functions/v1/webhook-envia?s=$ENVIA_WEBHOOK_SECRET" \
+            nohup node scripts/envia-simulado.mjs > "$RUNNER_TEMP/envia.log" 2>&1 &
           timeout 20 sh -c 'until curl -s -o /dev/null http://127.0.0.1:8090/; do sleep 1; done'
+          timeout 20 sh -c 'until curl -s -o /dev/null http://127.0.0.1:8091/; do sleep 1; done'
       - name: Servir las funciones
         run: |
           nohup supabase functions serve --env-file "$RUNNER_TEMP/funciones.env" > "$RUNNER_TEMP/funciones.log" 2>&1 &
@@ -136,7 +144,7 @@ jobs:
           echo "las funciones no arrancaron"; cat "$RUNNER_TEMP/funciones.log"; exit 1
       - name: El contenedor de funciones alcanza al simulador
         run: docker exec "$(docker ps --filter name=edge_runtime -q | head -1)" sh -c 'getent hosts host.docker.internal || true'
-      - name: tests/seguridad (pedidos, pagos, rastreo, panel con MFA)
+      - name: tests/seguridad (pedidos, pagos, envíos, rastreo, panel con MFA)
         run: |
           eval "$(supabase status -o env | sed 's/^/export /')"
           export SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY:-$ANON_KEY}" SUPABASE_SECRET_KEY="${SECRET_KEY:-$SERVICE_ROLE_KEY}"
@@ -146,5 +154,6 @@ jobs:
         run: |
           echo "::group::funciones"; tail -n 200 "$RUNNER_TEMP/funciones.log"; echo "::endgroup::"
           echo "::group::mp simulado"; tail -n 100 "$RUNNER_TEMP/mp.log"; echo "::endgroup::"
+          echo "::group::envia simulado"; tail -n 100 "$RUNNER_TEMP/envia.log"; echo "::endgroup::"
 
   # e2e: se activa en la Fase 8 (Playwright, solo en PR a main).

@@ -16,7 +16,10 @@ const TITULOS: Record<string, string> = {
   contracargo: 'Contracargo: no entregar',
   reembolso: 'Reembolso registrado en Mercado Pago',
   pago_sin_pedido: 'Pago de Mercado Pago sin pedido',
-  webhook_fallido: 'Un aviso de pago no se pudo procesar',
+  webhook_fallido: 'Un aviso (pago o envío) no se pudo procesar',
+  envio_incidencia: 'Problema con un envío (devolución, intento fallido o extravío)',
+  envio_no_entregar: 'Un pedido "no entregar" va en camino',
+  envio_desconocido: 'Aviso de Envia de una guía que no conocemos',
 };
 const escapar = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -58,11 +61,13 @@ export async function manejar(req: Request, admin = clienteServicio(), fetchFn: 
 
     const { data: payloads, error: e3 } = await admin.rpc('limpiar_payloads_viejos');
     if (e3) throw new Error('limpiar_payloads_viejos: ' + e3.message);
+    const { data: cotizaciones, error: e4 } = await admin.rpc('limpiar_cotizaciones_viejas');
+    if (e4) throw new Error('limpiar_cotizaciones_viejas: ' + e4.message);
 
     let alertas = 0;
     try { alertas = await avisarPorCorreo(admin, fetchFn); } catch (e) { console.error('alertas', e instanceof Error ? e.message : e); }
 
-    const detalle = { reservas_liberadas: liberados ?? 0, limites_borrados: limpiadas ?? 0, payloads_borrados: payloads ?? 0, alertas_enviadas: alertas, ms: Date.now() - inicio };
+    const detalle = { reservas_liberadas: liberados ?? 0, limites_borrados: limpiadas ?? 0, payloads_borrados: payloads ?? 0, cotizaciones_borradas: cotizaciones ?? 0, alertas_enviadas: alertas, ms: Date.now() - inicio };
     const { error: e2 } = await admin.rpc('registrar_latido', { p_nombre: 'cron-conciliar', p_detalle: detalle });
     if (e2) throw new Error('registrar_latido: ' + e2.message);
 
