@@ -6,10 +6,14 @@ export class ErrorApi extends Error {
   constructor(estado, codigo, mensaje, datos = {}) { super(mensaje || codigo); this.estado = estado; this.codigo = codigo; this.datos = datos; }
 }
 
-/** Llama a /functions/v1/<nombre>. Si hay sesión, manda su token; si no, solo la llave publicable. */
-export async function llamarFuncion(nombre, { metodo = 'POST', cuerpo, señal } = {}) {
+/**
+ * Llama a /functions/v1/<nombre>. Si hay sesión, manda su token; si no, solo la llave publicable.
+ * `cliente`: de qué sesión sale el token. Por defecto la del panel; la tienda pasa la de la cuenta de
+ * clienta (src/lib/cuenta.js) o `null` para no mandar ninguna.
+ */
+export async function llamarFuncion(nombre, { metodo = 'POST', cuerpo, señal, cliente = supabase } = {}) {
   if (!supabaseConfigurado) throw new ErrorApi(0, 'sin_configurar', 'Falta VITE_SUPABASE_URL o VITE_SUPABASE_PUBLISHABLE_KEY');
-  const { data } = await supabase.auth.getSession();
+  const { data } = cliente ? await cliente.auth.getSession() : { data: {} };
   const encabezados = { apikey: SUPABASE_KEY };
   if (data.session?.access_token) encabezados.Authorization = `Bearer ${data.session.access_token}`;
   if (cuerpo !== undefined) encabezados['Content-Type'] = 'application/json';

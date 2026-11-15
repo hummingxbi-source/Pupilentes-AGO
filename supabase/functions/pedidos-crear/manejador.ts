@@ -1,16 +1,21 @@
 // POST /functions/v1/pedidos-crear — la caja de la tienda (ARQUITECTURA §3.3 A, Fase 3).
-// Compra como invitada (D5). Turnstile + límite por IP. El total lo calcula la BD (crear_pedido):
-// el navegador solo manda lo que vio (`total_visto`) y, si cambió, recibe 409 con el total nuevo.
+// Compra como invitada (D5) o con la sesión de su cuenta (Fase 7). Turnstile + límite por IP.
+// El total lo calcula la BD (crear_pedido): el navegador solo manda lo que vio (`total_visto`) y,
+// si cambió, recibe 409 con el total nuevo.
 //
 //   { clave_idempotencia, metodo_pago: "mercadopago"|"transferencia", items: [{ sku, cantidad }],
 //     entrega: { tipo, zona, cita?, direccion? }, contacto: { nombre, telefono, correo? },
-//     total_visto, turnstile }
+//     puntos?, total_visto, turnstile }
+//
+// Cuenta: si llega `Authorization: Bearer <token de sesión>` se verifica aquí y el pedido queda en
+// esa cuenta (`cuenta_id` lo pone ESTA función, nunca el navegador). Los puntos solo se canjean con
+// sesión; el saldo y el descuento los valida crear_pedido con la fila bloqueada.
 //   → { folio, token, total, envio, expira, metodo_pago, url_pago? }
 //
 // Mercado Pago: se crea la preferencia de Checkout Pro con el total de la BD y caducidad = la reserva.
 // Si MP no responde, el pedido se cancela (libera el stock) y se responde 502.
 
-import { clienteServicio } from '../_shared/auth.ts';
+import { clienteServicio, exigirUsuario } from '../_shared/auth.ts';
 import { encabezadosCors, manejarCors } from '../_shared/cors.ts';
 import { ErrorHttp, errorDeBd, json, respuestaDeError } from '../_shared/http.ts';
 import { exigirLimite, ipCliente } from '../_shared/limite.ts';
@@ -38,6 +43,7 @@ const Cuerpo = z.object({
     }).strict().optional(),
   }).strict(),
   contacto: z.object({ nombre: texto(120).min(2), telefono: z.string().regex(/^[0-9 +()-]{10,20}$/), correo: z.string().email().max(254).optional().or(z.literal('')) }).strict(),
+  puntos: z.number().int().min(0).max(100_000).optional(),
   total_visto: z.number().min(0).max(1_000_000),
   turnstile: z.string().max(2048),
 });
@@ -56,6 +62,21 @@ const ERRORES: Record<string, [number, string]> = {
   metodo_invalido: [400, 'Elige cómo pagar.'],
   sin_items: [400, 'Tu bolsa está vacía.'],
   idempotencia_invalida: [400, 'Vuelve a intentarlo.'],
+  // Fase 7 · cuenta y puntos
+  puntos_invalidos: [400, 'Revisa cuántos puntos quieres usar.'],
+  puntos_sin_cuenta: [401, 'Entra a tu cuenta para usar tus puntos.'],
+  puntos_inactivos: [409, 'Por ahora no se pueden usar puntos. Quítalos para continuar.'],
+  puntos_excedidos: [409, 'Con puntos puedes pagar hasta la mitad de tus productos. Usa menos puntos.'],
+  puntos_insuficientes: [409, 'Ya no tienes esos puntos disponibles. Revisa tu saldo.'],
+  cuenta_de_panel: [403, 'Esta es una cuenta del panel. Para comprar, sal del panel o entra con otro correo.'],
+  correo_sin_verificar: [403, 'Confirma tu correo con el código que te mandamos.'],
+  cuenta_no_existe: [401, 'Tu sesión venció. Vuelve a entrar o compra como invitada.'],
+};
+
+/** Hay token de usuario (no solo la llave publicable). */
+const traeSesion = (req: Request) => {
+  const t = /^Bearer\s+(.+)$/i.exec(req.headers.get('Authorization') ?? '')?.[1]?.trim() ?? '';
+  return t !== '' && !t.startsWith('sb_publishable_') && !t.startsWith('sb_secret_');
 };
 
 export interface Dependencias {
@@ -91,16 +112,30 @@ export async function manejar(req: Request, d: Dependencias = dependencias()): P
       throw new ErrorHttp(503, 'mp_sin_configurar', 'El pago con tarjeta no está disponible por ahora. Puedes pagar por transferencia.');
     }
 
-    const { turnstile: _t, ...datos } = cuerpo;
+    // Sesión de cuenta: si se manda y no es válida, se avisa (no se cae en invitada en silencio)
+    let cuentaId: string | null = null;
+    if (traeSesion(req)) {
+      try { cuentaId = (await exigirUsuario(req, d.admin)).id; } catch {
+        throw new ErrorHttp(401, 'sesion_vencida', 'Tu sesión venció. Vuelve a entrar o compra como invitada.');
+      }
+    }
+    if ((cuerpo.puntos ?? 0) > 0 && !cuentaId) throw new ErrorHttp(401, 'puntos_sin_cuenta', ERRORES.puntos_sin_cuenta[1]);
+
+    const { turnstile: _t, ...resto } = cuerpo;
+    const datos = { ...resto, puntos: cuerpo.puntos ?? 0, cuenta_id: cuentaId };
     const { data, error } = await d.admin.rpc('crear_pedido', { p_datos: datos });
     if (error) {
       if (error.message === 'total_cambio') {
         return json({ error: 'total_cambio', mensaje: ERRORES.total_cambio[1], total: Number(error.details) }, 409, enc);
       }
+      if (error.message === 'puntos_insuficientes' || error.message === 'puntos_excedidos') {
+        const [estado, mensaje] = ERRORES[error.message];
+        return json({ error: error.message, mensaje, maximo: Number(error.details) }, estado, enc);
+      }
       errorDeBd(error, ERRORES, 'crear_pedido');
     }
-    const p = data as { id: string; folio: string; token: string; total: number; envio?: number; expira: string; metodo_pago: string; repetido: boolean; estado: string };
-    const resp = { folio: p.folio, token: p.token, total: Number(p.total), envio: p.envio, expira: p.expira, metodo_pago: p.metodo_pago };
+    const p = data as { id: string; folio: string; token: string; total: number; envio?: number; descuento?: number; puntos_usados?: number; expira: string; metodo_pago: string; repetido: boolean; estado: string };
+    const resp = { folio: p.folio, token: p.token, total: Number(p.total), envio: p.envio, descuento: Number(p.descuento ?? 0), puntos_usados: p.puntos_usados ?? 0, expira: p.expira, metodo_pago: p.metodo_pago };
     // Transferencia, o un doble toque sobre un pedido que ya no espera pago: no se crea otro cobro.
     if (p.metodo_pago !== 'mercadopago' || p.estado !== 'pendiente_pago') return json({ ...resp, estado: p.estado }, 200, enc);
 

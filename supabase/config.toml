@@ -177,8 +177,11 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-# Cerrado: las cuentas del panel las crea el equipo. El registro de clientas (OTP) se abre en la Fase 7.
-enable_signup = false
+# Abierto en la Fase 7 para que las clientas creen su cuenta con el código por correo (OTP).
+# El panel sigue cerrado: sin fila en perfiles_panel no hay acceso (las cuentas del panel las crea
+# el equipo con scripts/cuentas-panel.mjs). Un registro con contraseña queda sin confirmar
+# (enable_confirmations) y una cuenta sin correo verificado no ve nada (privado.asegurar_cuenta).
+enable_signup = true
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
@@ -215,11 +218,14 @@ token_verifications = 30
 # Number of Web3 logins that can be made in a 5 minute interval per IP address.
 web3 = 30
 
-# Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
-# [auth.captcha]
-# enabled = true
-# provider = "hcaptcha"
-# secret = ""
+# Anti-bots de Supabase Auth con Cloudflare Turnstile (Fase 7, §6.1 regla 7): registro, inicio de
+# sesión con contraseña (panel) y envío de códigos por correo exigen un token de Turnstile [34].
+# En local y en el CI se usa la llave SECRETA DE PRUEBA de Cloudflare, que siempre aprueba (es pública,
+# no es un secreto). En producción se activa en el panel de Supabase con la llave real (ver README).
+[auth.captcha]
+enabled = true
+provider = "turnstile"
+secret = "1x0000000000000000000000000000000AA"
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
@@ -228,7 +234,9 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# Fase 7: sí. La cuenta de clienta exige el correo verificado (con el código); así un registro con
+# contraseña nunca entra sin probar que el correo es suyo.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
@@ -248,10 +256,16 @@ otp_expiry = 600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Fase 7: el correo lleva el código de 6 dígitos ({{ .Token }}), no un enlace. Se usan las dos
+# plantillas: "confirmation" la recibe quien entra por primera vez y "magic_link" quien ya tiene cuenta.
+# En producción se pegan las mismas plantillas en el panel de Supabase (Auth → Email Templates).
+[auth.email.template.confirmation]
+subject = "Tu código para entrar a Pupilentes AGO"
+content_path = "./supabase/templates/codigo.html"
+
+[auth.email.template.magic_link]
+subject = "Tu código para entrar a Pupilentes AGO"
+content_path = "./supabase/templates/codigo.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
@@ -469,3 +483,7 @@ verify_jwt = false
 [functions.panel-tiktok]
 [functions.webhook-tiktok]
 verify_jwt = false
+
+# Fase 7 · cuenta de clienta. Exige la sesión del código por correo (la plataforma verifica el JWT
+# y la función vuelve a comprobarlo con exigirUsuario).
+[functions.cuenta]

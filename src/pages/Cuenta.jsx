@@ -1,109 +1,193 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { ArrowRight, LogOut, Gift, RotateCcw, MapPin, Truck } from 'lucide-react';
-import { useStore, normTel, puntosDe, nivelDe, NIVELES, PUNTO_MXN } from '../lib/store';
-import { ESTADOS, PASOS, mxn } from '../lib/catalog';
-import { useProductos, varianteDe, NEUTRO } from '../lib/tienda';
-import { LOGO, TLink, Iris } from '../ui';
+import { LogOut, Gift, RotateCcw, MapPin, Mail } from 'lucide-react';
+import { useStore } from '../lib/store';
+import { mxn } from '../lib/catalog';
+import { useProductos } from '../lib/tienda';
+import { ESTADO_CLIENTA, PASOS_CLIENTA } from '../lib/pedidos';
+import { useCuenta, iniciarCuenta, nivelDe, NIVELES, MOTIVOS, paraRecomprar, derivados } from '../lib/cuenta';
+import { Turnstile } from '../lib/Turnstile';
+import { LOGO, TLink } from '../ui';
+
+// Cuenta de clienta (Fase 7): código por correo, puntos reales e historial. La cuenta es opcional (D5).
+const fecha = (f, o = { day: 'numeric', month: 'short', year: 'numeric' }) => new Date(f).toLocaleDateString('es-MX', o);
+
+function Entrar() {
+  const { pedirCodigo, verificar, error } = useCuenta();
+  const ts = useRef();
+  const [token, setToken] = useState(null);
+  const [correo, setCorreo] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [fase, setFase] = useState('correo');
+  const [enviando, setEnviando] = useState(false);
+  const correoOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo.trim());
+
+  const enviar = async (e) => {
+    e.preventDefault(); if (!correoOk || !token || enviando) return;
+    setEnviando(true);
+    const ok = await pedirCodigo(correo, token);
+    setEnviando(false); ts.current?.reiniciar();   // cada token sirve una vez
+    if (ok) setFase('codigo');
+  };
+  const entrar = async (e) => {
+    e.preventDefault(); if (codigo.length !== 6 || enviando) return;
+    setEnviando(true); await verificar(correo, codigo); setEnviando(false);
+  };
+
+  return (
+    <div className="wrap ac-login">
+      <div className="ac-in">
+        <p className="eyebrow">Mi cuenta</p>
+        <h1 className="h-l" style={{ margin: '12px 0 16px' }}>Tus puntos y tus pedidos, <span className="it gold">con tu correo.</span></h1>
+        <p className="lead">Sin contraseñas: te mandamos un código de 6 dígitos. No necesitas cuenta para comprar; con ella juntas puntos y ves tus pedidos.</p>
+      </div>
+      <div className="box ac-in ac-form">
+        {fase === 'correo' && <form onSubmit={enviar}>
+          <div className="field" style={{ marginTop: 0 }}><label htmlFor="ac-correo">Tu correo</label>
+            <input id="ac-correo" className="inp" type="email" autoComplete="email" maxLength={254} value={correo} onChange={(e) => setCorreo(e.target.value)} placeholder="tu@correo.com" style={{ fontSize: 18, height: 56 }} /></div>
+          <div style={{ marginTop: 14 }}><Turnstile ref={ts} accion="cuenta" alCambiar={setToken} /></div>
+          {error && <p className="err" role="alert">{error}</p>}
+          <button className="btn full" style={{ marginTop: 14 }} disabled={!correoOk || !token || enviando}><Mail size={16} /> {enviando ? 'Enviando…' : 'Enviarme el código'}</button>
+          <p className="mute" style={{ fontSize: 13, marginTop: 10 }}>Si compraste como invitada con este correo, tus pedidos aparecen solos al entrar.</p>
+        </form>}
+        {fase === 'codigo' && <form onSubmit={entrar}>
+          <p style={{ marginBottom: 10 }}>Te mandamos un código de 6 dígitos a <b>{correo.trim().toLowerCase()}</b>. Vence en 10 minutos.</p>
+          <input className="inp mono" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ''))} placeholder="••••••" style={{ fontSize: 30, letterSpacing: '.5em', textAlign: 'center', height: 64 }} aria-label="Código" />
+          {error && <p className="err" role="alert">{error}</p>}
+          <button className="btn full" style={{ marginTop: 12 }} disabled={codigo.length !== 6 || enviando}>{enviando ? 'Entrando…' : 'Entrar'}</button>
+          <button type="button" className="mute" style={{ fontSize: 13, marginTop: 10 }} onClick={() => { setFase('correo'); setCodigo(''); }}>Cambiar correo o pedir otro código</button>
+        </form>}
+      </div>
+    </div>
+  );
+}
+
+function Perfil({ perfil, reglas }) {
+  const { guardarPerfil, error } = useCuenta();
+  const [f, setF] = useState({ nombre: perfil.nombre || '', cumpleanos: perfil.cumpleanos || '', telefono: perfil.telefono || '' });
+  const [enviando, setEnviando] = useState(false);
+  const [aviso, setAviso] = useState('');
+  const completo = perfil.nombre && perfil.cumpleanos;
+  const guardar = async (e) => {
+    e.preventDefault(); setEnviando(true); setAviso('');
+    try {
+      const r = await guardarPerfil({ nombre: f.nombre.trim(), cumpleanos: f.cumpleanos || '', telefono: f.telefono.replace(/\D/g, '') });
+      setAviso(r.bono ? `¡Listo! Sumaste ${reglas.bono_perfil} puntos.` : 'Guardado.');
+    } catch (e2) { setAviso(e2.message || 'No se pudo guardar.'); } finally { setEnviando(false); }
+  };
+  const bono = reglas.activos && reglas.bono_perfil > 0 && !reglas.bono_recibido;
+  return (
+    <section className="panel-card ac-in"><h3><span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{bono && <Gift size={18} className="gold" />} {completo ? 'Tu perfil' : 'Completa tu perfil'}</span>
+      {bono && <small>+{reglas.bono_perfil} puntos</small>}</h3>
+      <form onSubmit={guardar}>
+        <div className="field" style={{ marginTop: 0 }}><label htmlFor="pf-nombre">Nombre</label><input id="pf-nombre" className="inp" maxLength={120} value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} /></div>
+        <div className="two">
+          <div className="field"><label htmlFor="pf-cumple">Cumpleaños</label><input id="pf-cumple" className="inp" type="date" disabled={!!perfil.cumpleanos} value={f.cumpleanos} onChange={(e) => setF({ ...f, cumpleanos: e.target.value })} /></div>
+          <div className="field"><label htmlFor="pf-tel">WhatsApp <span className="mute">(opcional)</span></label><input id="pf-tel" className="inp mono" inputMode="tel" value={f.telefono} onChange={(e) => setF({ ...f, telefono: e.target.value.replace(/[^\d ]/g, '').slice(0, 14) })} /></div>
+        </div>
+        {bono && <p className="note">El bono se suma cuando tu perfil está completo y ya tienes una compra pagada.</p>}
+        {(aviso || error) && <p className={aviso.startsWith('¡') || aviso === 'Guardado.' ? 'note' : 'err'} role="status">{aviso || error}</p>}
+        <button className="btn sm" style={{ marginTop: 14 }} disabled={enviando || f.nombre.trim().length < 2}>{enviando ? 'Guardando…' : 'Guardar'}</button>
+      </form>
+    </section>
+  );
+}
 
 export default function Cuenta() {
-  const { sesion, clientes, pedidos, login, logout, guardarCliente, agregar, notificar } = useStore();
+  const { estado, datos, error, salir, correo } = useCuenta();
+  const { agregar, notificar } = useStore();
   const productos = useProductos();
   const root = useRef();
-  const [tel, setTel] = useState(''); const [code, setCode] = useState(''); const [fase, setFase] = useState('tel'); const [nuevoNombre, setNuevoNombre] = useState('');
-  const c = sesion && clientes[sesion];
-  const pts = c ? puntosDe(sesion, pedidos, clientes) : 0;
-  const nivel = nivelDe(pts); const sig = NIVELES[NIVELES.indexOf(nivel) + 1];
-  const mios = sesion ? pedidos.filter((p) => normTel(p.tel) === sesion) : [];
-  const ultimo = mios.find((p) => p.items.some((i) => productos.find((x) => x.id === i.id)?.tipo === 'lente'));
-  const renov = ultimo ? new Date(new Date(ultimo.fecha).getTime() + 335 * 864e5) : null;
-  const [perfil, setPerfil] = useState({ correo: c?.correo || '', cumple: c?.cumple || '' });
+  useEffect(() => { iniciarCuenta(); }, []);
+
+  const pts = datos?.saldo ?? 0;
+  const nivel = nivelDe(Math.max(pts, 0)); const sig = NIVELES[NIVELES.indexOf(nivel) + 1];
+  const reglas = datos?.reglas;
+  const pedidos = datos?.pedidos || [];
+  const { lente, renovacion, direcciones, ultimo } = derivados(pedidos);
 
   useGSAP(() => {
-    gsap.from('.ac-in', { y: 40, opacity: 0, stagger: 0.07, duration: 1, ease: 'expo.out', delay: 0.6 });
+    if (!root.current) return;
+    gsap.from('.ac-in', { y: 40, opacity: 0, stagger: 0.07, duration: 1, ease: 'expo.out', delay: 0.2 });
     const card = root.current.querySelector('.club');
     if (card) {
       const rx = gsap.quickTo(card, 'rotationX', { duration: 0.6 }), ry = gsap.quickTo(card, 'rotationY', { duration: 0.6 });
       const mv = (e) => { const r = card.getBoundingClientRect(); ry(((e.clientX - r.left) / r.width - 0.5) * 14); rx(-((e.clientY - r.top) / r.height - 0.5) * 14); };
       card.addEventListener('pointermove', mv); card.addEventListener('pointerleave', () => { rx(0); ry(0); });
-      const o = { v: 0 }; gsap.to(o, { v: pts, duration: 1.8, ease: 'power2.out', delay: 0.8, onUpdate: () => { const el = card.querySelector('.pts'); if (el) el.textContent = Math.round(o.v); } });
+      const o = { v: 0 }; gsap.to(o, { v: pts, duration: 1.8, ease: 'power2.out', delay: 0.4, onUpdate: () => { const el = card.querySelector('.pts'); if (el) el.textContent = Math.round(o.v); } });
     }
-  }, { scope: root, dependencies: [sesion, fase] });
+  }, { scope: root, dependencies: [estado, !!datos] });
 
-  if (!c) return (
-    <main className="ac" ref={root}><div className="wrap ac-login">
-      <div className="ac-in">
-        <p className="eyebrow">Mi cuenta</p>
-        <h1 className="h-l" style={{ margin: '12px 0 16px' }}>Tus puntos y tus pedidos, <span className="it gold">con tu número.</span></h1>
-        <p className="lead">Sin contraseñas: entra con tu WhatsApp y te mandamos un código.</p>
-      </div>
-      <div className="box ac-in ac-form">
-        {fase === 'tel' && <>
-          <div className="field" style={{ marginTop: 0 }}><label>Tu WhatsApp</label><input className="inp mono" inputMode="tel" value={tel} onChange={(e) => setTel(e.target.value)} placeholder="55 1234 5678" style={{ fontSize: 20, height: 56 }} /></div>
-          <button className="btn full" style={{ marginTop: 14 }} onClick={() => normTel(tel).length === 10 ? setFase('code') : notificar('Escribe tu número a 10 dígitos')}>Enviarme el código</button>
-          <p className="mute" style={{ fontSize: 13, marginTop: 10 }}>Demo: clienta registrada <button className="link" onClick={() => setTel('5512345678')}>55 1234 5678</button></p>
-        </>}
-        {fase === 'code' && <>
-          <p style={{ marginBottom: 10 }}>Te mandamos un código de 4 dígitos al <b className="mono">{tel}</b>.</p>
-          <input className="inp mono" inputMode="numeric" maxLength={4} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="••••" style={{ fontSize: 30, letterSpacing: '.6em', textAlign: 'center', height: 64 }} />
-          <p className="mute" style={{ fontSize: 13, margin: '8px 0 12px' }}>Demo: cualquier código de 4 dígitos funciona.</p>
-          <button className="btn full" disabled={code.length < 4} onClick={() => { const t = normTel(tel); if (clientes[t]) login(t); else setFase('nueva'); }}>Entrar</button>
-        </>}
-        {fase === 'nueva' && <>
-          <p style={{ marginBottom: 10 }}>No encontramos compras con ese número. <b>¿Abrimos tu cuenta?</b> Te regalamos 50 puntos.</p>
-          <input className="inp" value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} placeholder="Tu nombre" />
-          <button className="btn full" style={{ marginTop: 12 }} disabled={nuevoNombre.trim().length < 3} onClick={() => { const t = normTel(tel); guardarCliente({ tel: t, nombre: nuevoNombre, puntosBase: 50, direcciones: [] }); login(t); }}>Crear mi cuenta</button>
-        </>}
-      </div>
+  const recomprar = (p) => {
+    const { agregables, faltan } = paraRecomprar(p, productos);
+    agregables.forEach((it) => agregar(it));
+    if (!agregables.length) notificar('Esas piezas no están disponibles ahorita');
+    else if (faltan.length) notificar(`Agregamos lo disponible. Sin existencias: ${faltan.join(', ')}`);
+  };
+
+  if (estado === 'sin_configurar') return <main className="ac"><div className="wrap empty"><p className="err">Falta configurar la conexión con la tienda (VITE_SUPABASE_URL).</p></div></main>;
+  if (estado === 'cargando') return <main className="ac"><div className="wrap empty"><p className="mute" role="status">Cargando…</p></div></main>;
+  if (estado === 'fuera') return <main className="ac" ref={root}><Entrar /></main>;
+  if (!datos) return (
+    <main className="ac"><div className="wrap empty">
+      {error ? <><p className="err" role="alert">{error}</p><button className="btn ghost sm" style={{ marginTop: 12 }} onClick={salir}><LogOut size={16} /> Salir</button></> : <p className="mute" role="status">Cargando tu cuenta…</p>}
     </div></main>
   );
 
-  const completo = c.correo && c.cumple;
+  const perfil = datos.perfil;
+  const nombre = (perfil.nombre || correo || '').split(/[\s@]/)[0];
   return (
     <main className="ac" ref={root}><div className="wrap">
-      <div className="ac-head ac-in"><div><p className="eyebrow">Mi cuenta</p><h1 className="h-l" style={{ marginTop: 10 }}>Hola, <span className="it gold">{c.nombre.split(' ')[0]}</span></h1></div><button className="btn ghost sm" onClick={logout}><LogOut size={16} /> Salir</button></div>
+      <div className="ac-head ac-in"><div><p className="eyebrow">Mi cuenta</p><h1 className="h-l" style={{ marginTop: 10 }}>Hola, <span className="it gold">{nombre}</span></h1></div><button className="btn ghost sm" onClick={salir}><LogOut size={16} /> Salir</button></div>
+      {datos.vinculados > 0 && <p className="note ac-in">Encontramos {datos.vinculados} {datos.vinculados === 1 ? 'pedido' : 'pedidos'} que hiciste como invitada con este correo y los agregamos a tu cuenta.</p>}
       <div className="ac-grid">
         <div>
           <div className="club-wrap ac-in"><div className="club">
             <div className="club-top"><img src={LOGO} alt="" /><span>AGO CLUB · {nivel.id.toUpperCase()}</span></div>
             <div><span className="pts">0</span><span className="u">puntos</span></div>
-            <div className="club-bot"><span>{c.nombre}</span><span>= {mxn(pts * PUNTO_MXN)} para tu próxima compra</span></div>
+            <div className="club-bot"><span>{perfil.nombre || perfil.correo}</span><span>= {mxn(Math.max(pts, 0) * Number(reglas.valor))} para tu próxima compra</span></div>
           </div></div>
-          {sig && <div className="ac-in" style={{ marginTop: 16 }}><div className="sum" style={{ fontSize: 14 }}><span>Nivel {nivel.id}</span><span className="mono">{sig.min - pts} pts para {sig.id}</span></div><div className="road"><b style={{ transform: `scaleX(${(pts - nivel.min) / (sig.min - nivel.min)})` }} /></div></div>}
-          <section className="panel-card ac-in" style={{ marginTop: 22 }}>
+          {sig && <div className="ac-in" style={{ marginTop: 16 }}><div className="sum" style={{ fontSize: 14 }}><span>Nivel {nivel.id}</span><span className="mono">{sig.min - Math.max(pts, 0)} pts para {sig.id}</span></div><div className="road"><b style={{ transform: `scaleX(${(Math.max(pts, 0) - nivel.min) / (sig.min - nivel.min)})` }} /></div></div>}
+          {reglas.activos && <section className="panel-card ac-in" style={{ marginTop: 22 }}>
             <h3>Cómo sumar</h3>
-            <div className="ac-rules"><span><b>1 pt</b> por cada $10</span><span><b>$0.50</b> vale cada punto</span><span><b>+50</b> al completar tu perfil</span><span><b>Dorado</b> desde 300 pts: envío prioritario</span></div>
-          </section>
-          {!completo ? (
-            <section className="panel-card ac-in"><h3><span style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Gift size={18} className="gold" /> Completa tu perfil</span><small>+50 puntos</small></h3>
-              <div className="two"><div className="field" style={{ marginTop: 0 }}><label>Correo</label><input className="inp" value={perfil.correo} onChange={(e) => setPerfil({ ...perfil, correo: e.target.value })} /></div><div className="field" style={{ marginTop: 0 }}><label>Cumpleaños</label><input className="inp" type="date" value={perfil.cumple} onChange={(e) => setPerfil({ ...perfil, cumple: e.target.value })} /></div></div>
-              <button className="btn sm" style={{ marginTop: 14 }} disabled={!perfil.correo || !perfil.cumple} onClick={() => { guardarCliente({ ...c, ...perfil, puntosBase: (c.puntosBase || 0) + 50 }); notificar('¡Listo! Sumaste 50 puntos'); }}>Guardar y ganar 50 pts</button>
-            </section>
-          ) : <section className="panel-card ac-in"><h3>Tu perfil <small>completo ✓</small></h3><p className="mute" style={{ fontSize: 14 }}>{c.correo} · cumpleaños {new Date(c.cumple + 'T12:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })} (te llega un regalo ese mes)</p></section>}
+            <div className="ac-rules"><span><b>1 pt</b> por cada {mxn(Number(reglas.pesos_por_punto))}</span><span><b>{mxn(Number(reglas.valor))}</b> vale cada punto</span>
+              {reglas.bono_perfil > 0 && <span><b>+{reglas.bono_perfil}</b> al completar tu perfil</span>}<span>Úsalos para pagar hasta el <b>{reglas.max_pct}%</b> de tus productos</span></div>
+          </section>}
+          <Perfil key={perfil.nombre + perfil.cumpleanos} perfil={perfil} reglas={reglas} />
+          {datos.movimientos?.length > 0 && <section className="panel-card ac-in"><h3>Movimientos de puntos</h3>
+            {datos.movimientos.slice(0, 12).map((m, i) => <div key={i} className="alert-row"><span>{MOTIVOS[m.motivo] || m.motivo}{m.folio ? <span className="mono mute"> · {m.folio}</span> : null}<small className="mute" style={{ display: 'block' }}>{fecha(m.fecha)}</small></span>
+              <span className={'mono ' + (m.delta > 0 ? 'gold' : 'mute')}>{m.delta > 0 ? '+' : ''}{m.delta}</span></div>)}
+          </section>}
         </div>
         <div>
-          <section className="panel-card ac-in"><h3>Tus pedidos <small>{mios.length}</small></h3>
-            {!mios.length && <p className="mute">Aún no tienes pedidos. <TLink to="/tienda" className="link">Ver la tienda</TLink></p>}
-            {mios.map((p) => { const k = PASOS.indexOf(p.estado); return (
-              <TLink key={p.folio} to={`/pedido/${p.folio}`} className="ac-ped">
-                <div><b>{p.items[0].nombre}{p.items.length > 1 ? ` + ${p.items.length - 1}` : ''}</b><small className="mono">{p.folio} · {new Date(p.fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</small>
-                  <div className="dots">{PASOS.map((s, i) => <i key={s} className={i <= k ? 'on' : ''} />)}<span>{ESTADOS[p.estado].label}{p.guia ? ` · guía ${p.guia}` : ''}</span></div></div>
-                <span className="mono">{mxn(p.total)}</span>
-              </TLink>); })}
+          <section className="panel-card ac-in"><h3>Tus pedidos <small>{pedidos.length}</small></h3>
+            {!pedidos.length && <p className="mute">Aún no tienes pedidos. <TLink to="/tienda" className="link">Ver la tienda</TLink></p>}
+            {pedidos.map((p) => { const e = ESTADO_CLIENTA[p.estado] || { titulo: p.estado }; return (
+              <div key={p.folio} className="ac-ped">
+                <TLink to={`/pedido/${p.token}`} style={{ flex: 1 }}>
+                  <b>{p.items?.[0]?.tono || p.items?.[0]?.producto}{p.items?.length > 1 ? ` + ${p.items.length - 1}` : ''}</b><small className="mono">{p.folio} · {fecha(p.fecha)}</small>
+                  <div className="dots">{!e.fin && PASOS_CLIENTA.map((s, i) => <i key={s} className={i <= e.paso ? 'on' : ''} />)}<span>{e.titulo}{p.guia?.guia ? ` · guía ${p.guia.guia}` : ''}</span></div>
+                </TLink>
+                <span style={{ textAlign: 'right' }}><span className="mono">{mxn(Number(p.total))}</span>
+                  {p.puntos_usados > 0 && <small className="mute" style={{ display: 'block' }}>{p.puntos_usados} pts usados</small>}
+                  <button className="link" style={{ fontSize: 13, display: 'flex', gap: 4, alignItems: 'center', marginTop: 4 }} onClick={() => recomprar(p)}><RotateCcw size={13} /> Repetir</button></span>
+              </div>); })}
           </section>
           <div className="ac-2">
-            <section className="panel-card ac-in"><h3>Tu graduación</h3>
-              <div className="eyes"><div className="eye-sel"><div className="lb"><span>OD</span></div><b className="mono" style={{ fontSize: 24 }}>{c.receta?.od || '—'}</b></div><div className="eye-sel"><div className="lb"><span>OI</span></div><b className="mono" style={{ fontSize: 24 }}>{c.receta?.oi || '—'}</b></div></div>
-              {ultimo && <button className="btn sm full" style={{ marginTop: 14 }} onClick={() => { const it = ultimo.items[0]; const p = productos.find((x) => x.id === it.id); const g = it.graduacion ?? it.od ?? NEUTRO; const v = p && (varianteDe(p, it.duracion ?? p.duraciones.at(-1) ?? null, g) || p.variantes.find((x) => x.graduacion === g)); if (!v || !v.disponible) { notificar('Ese par no está disponible ahorita'); return; } agregar({ id: p.id, sku: v.sku, nombre: p.nombre, alias: p.alias, duracion: v.duracion, graduacion: g, od: g, oi: g, cant: 1, precio: v.precio }); }}><RotateCcw size={15} /> Repetir mi último par</button>}
+            <section className="panel-card ac-in"><h3>Tu último par</h3>
+              {lente ? <><div className="big-n" style={{ fontSize: 28 }}>{lente.graduacion == null || Number(lente.graduacion) === 0 ? 'Sin graduación' : Number(lente.graduacion).toFixed(2)}</div>
+                <p className="mute" style={{ fontSize: 13.5, marginTop: 6 }}>{lente.tono || lente.producto} · el par</p>
+                <button className="btn sm full" style={{ marginTop: 14 }} onClick={() => recomprar(ultimo)}><RotateCcw size={15} /> Repetir mi último par</button></>
+                : <p className="mute">Aún no compras lentes con tu cuenta.</p>}
             </section>
             <section className="panel-card ac-in"><h3>Renovación</h3>
-              {renov ? <><div className="big-n">{Math.max(0, Math.round((renov - Date.now()) / 864e5))}<span style={{ fontSize: 16 }} className="mute"> días</span></div><p className="mute" style={{ fontSize: 13.5, marginTop: 6 }}>Tus {ultimo.items[0].nombre} cumplen su año el {renov.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}. Te avisamos por WhatsApp.</p></> : <p className="mute">Sin lentes activos.</p>}
+              {renovacion ? <><div className="big-n">{renovacion.dias}<span style={{ fontSize: 16 }} className="mute"> días</span></div><p className="mute" style={{ fontSize: 13.5, marginTop: 6 }}>Tus {renovacion.nombre} cumplen su ciclo el {fecha(renovacion.fecha, { day: 'numeric', month: 'long' })}.</p></> : <p className="mute">Sin lentes activos.</p>}
             </section>
           </div>
-          <section className="panel-card ac-in"><h3>Direcciones guardadas</h3>
-            {(c.direcciones || []).map((d, i) => <div key={i} className="alert-row"><span style={{ display: 'flex', gap: 10, alignItems: 'center' }}><MapPin size={16} className="gold" />{d.calle}, {d.colonia}</span><span className="mono mute">CP {d.cp}</span></div>)}
-            {!c.direcciones?.length && <p className="mute" style={{ fontSize: 14 }}>Se guardan automáticamente en tu próxima compra.</p>}
+          <section className="panel-card ac-in"><h3>Direcciones de tus envíos</h3>
+            {direcciones.map((d, i) => <div key={i} className="alert-row"><span style={{ display: 'flex', gap: 10, alignItems: 'center' }}><MapPin size={16} className="gold" />{d.calle}{d.numero ? ` ${d.numero}` : ''}, {d.colonia}</span><span className="mono mute">CP {d.cp}</span></div>)}
+            {!direcciones.length && <p className="mute" style={{ fontSize: 14 }}>Cuando compres con paquetería estando en tu cuenta, tu dirección aparece aquí y la puedes reusar en la caja.</p>}
           </section>
         </div>
       </div>

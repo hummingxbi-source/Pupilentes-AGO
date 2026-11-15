@@ -63,7 +63,7 @@ export async function cargarPedidos() {
 
 export async function cargarClientas() {
   return exigir(await supabase.from('clientas')
-    .select('id, nombre, telefono, correo, creado_en, pedidos(total, pago_estado, creado_en)')
+    .select('id, nombre, telefono, correo, creado_en, auth_user_id, pedidos(total, pago_estado, creado_en), puntos_movimientos(delta)')
     .order('creado_en', { ascending: false }).limit(500));
 }
 

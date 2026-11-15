@@ -95,7 +95,7 @@ export async function cuentaPanel(rol) {
   assert.ifError(error);
   await db.query('insert into public.perfiles_panel (user_id, rol) values ($1, $2)', [u.user.id, rol]);
   const cli = createClient(API, PUB, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: s1, error: e1 } = await cli.auth.signInWithPassword({ email: correo, password: clave });
+  const { data: s1, error: e1 } = await cli.auth.signInWithPassword({ email: correo, password: clave, options: { captchaToken: TURNSTILE } });
   assert.ifError(e1);
   const aal1 = s1.session.access_token;
   const { data: f, error: e2 } = await cli.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'ci' });

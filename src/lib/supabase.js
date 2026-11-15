@@ -15,3 +15,9 @@ if (SUPABASE_KEY.startsWith('sb_secret_')) {
 export const supabase = supabaseConfigurado
   ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;
+
+// Sesión de la cuenta de clienta (Fase 7), aparte de la del panel: otra llave de almacenamiento para
+// que la dueña con el panel abierto compre como cualquiera y una clienta nunca mande un token de panel.
+export const supabaseCuenta = supabaseConfigurado
+  ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'ago-cuenta-auth', detectSessionInUrl: false } })
+  : null;

@@ -404,16 +404,17 @@ export function Clientas() {
   const ref = useEntrada([cl.cargando]);
   const lista = (cl.datos || []).map((c) => {
     const pagados = (c.pedidos || []).filter((p) => p.pago_estado === 'aprobado');
-    return { ...c, n: pagados.length, gasto: pagados.reduce((a, p) => a + Number(p.total), 0), ultima: pagados.map((p) => p.creado_en).sort().at(-1) };
+    return { ...c, n: pagados.length, gasto: pagados.reduce((a, p) => a + Number(p.total), 0), ultima: pagados.map((p) => p.creado_en).sort().at(-1),
+      puntos: (c.puntos_movimientos || []).reduce((a, m) => a + m.delta, 0) };
   }).sort((a, b) => b.gasto - a.gasto);
   return (
     <div ref={ref}>
-      <div className="pn-h" data-in><div><h1>Clientas</h1><p>Quiénes te compran. Los puntos y la cuenta de clienta llegan en la Fase 7.</p></div></div>
+      <div className="pn-h" data-in><div><h1>Clientas</h1><p>Quiénes te compran. Las que tienen cuenta (código por correo) juntan puntos.</p></div></div>
       <Estado {...cl} />
       <section className="panel-card" data-in>
         {lista.map((c) => (
           <div className="cl-row" key={c.id}>
-            <div><b style={{ fontWeight: 500 }}>{c.nombre || 'Sin nombre'}</b><div className="mute" style={{ fontSize: 13 }}>{c.n} {c.n === 1 ? 'compra' : 'compras'} · {mxn(c.gasto)}{c.ultima ? ` · última ${new Date(c.ultima).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}` : ''}</div></div>
+            <div><b style={{ fontWeight: 500 }}>{c.nombre || 'Sin nombre'}</b><div className="mute" style={{ fontSize: 13 }}>{c.n} {c.n === 1 ? 'compra' : 'compras'} · {mxn(c.gasto)}{c.ultima ? ` · última ${new Date(c.ultima).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}` : ''}{c.auth_user_id ? ` · con cuenta · ${c.puntos} pts` : ''}</div></div>
             {c.telefono && <a className="btn sm ghost" href={waTo(c.telefono, `Hola ${(c.nombre || '').split(' ')[0]} 🤍`)} target="_blank" rel="noreferrer"><MessageCircle size={15} /> WhatsApp</a>}
           </div>))}
         {!cl.cargando && !lista.length && <p className="mute">Aún no hay clientas registradas. Aparecerán con las primeras compras (Fase 3).</p>}
