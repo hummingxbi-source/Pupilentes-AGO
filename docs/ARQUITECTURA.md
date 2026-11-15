@@ -649,6 +649,28 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 - [ ] Datos reales: precios web, historia de la marca, datos bancarios, políticas de envío y devolución, dominio deseado.
 - [ ] Aviso de que el link cambia (al lanzar, Fase 9).
 
+**Envíos (Fase 4, preguntas del 14 nov).** Mientras no respondan, el sistema usa valores provisionales que la dueña puede editar en `config_tienda`:
+- [ ] Dirección desde donde se envían los paquetes (calle, número, colonia, CP, ciudad, estado, teléfono). *Provisional: "Por confirmar", CP 08000.*
+- [ ] Peso y medidas de la caja de **un par** ya empacado. *Provisional: 100 g, 15 × 10 × 6 cm.*
+- [ ] Paqueterías que quiere ofrecer. *Provisional: Estafeta, DHL y FedEx.*
+- [ ] ¿Cobra el envío tal cual lo da Envia o con un cargo extra (empaque, manejo)? *Provisional: sin cargo extra.*
+- [ ] Envia cobra cada guía del saldo prepagado de la cuenta: ¿quién recarga y a nombre de quién queda la cuenta de Envia?
+- [ ] Metro y DiDi: ¿qué días y horarios ofrece? *Hoy la caja propone los 5 días siguientes (sin domingo) a las 12:00, 15:30 y 18:00.*
+- [ ] Tarifas reales de DiDi por alcaldía y costo de "otra estación" de Metro. *Provisionales: las de la demo.*
+- [ ] Datos bancarios para transferencia (banco, CLABE, beneficiario) y número de WhatsApp de la tienda. *Provisional: CLABE en ceros.*
+
+### 9.3 Trámites del equipo (no los puede hacer Claude)
+
+| # | Trámite | Para qué | Bloquea |
+|---|---|---|---|
+| T1 | App de Mercado Pago Developers + cuentas de prueba (vendedor y comprador) | Probar Checkout Pro de verdad (sandbox) | Cierre de la Fase 3 |
+| T2 | Cuenta de Envia.com en sandbox + token de API + webhook registrado | Probar cotización, guía y rastreo de verdad | Cierre de la Fase 4 |
+| T3 | Túnel `cloudflared` (o el proyecto Supabase de staging) para que MP y Envia lleguen a los webhooks | Los proveedores no llaman a `localhost` | T1 y T2 |
+| T4 | Unir los PR #13 (Fase 3) y el de la Fase 4 a `main` con el CI en verde | Que `main` tenga el proyecto al día | — |
+| T5 | Pasar el repo a privado (D1) | Seguridad | — |
+| T6 | Prueba a mano de la Fase 2 en una Mac o PC con Docker | Cierre formal de la Fase 2 | — |
+| T7 | App de desarrollador de Mercado Libre **con la cuenta de la clienta** (o que ella la autorice) | Fase 5 | Cierre de la Fase 5 |
+
 ---
 
 ## 10. Registro de cambios
