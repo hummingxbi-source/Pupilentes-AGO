@@ -97,9 +97,20 @@ MP_SIM_HOST=0.0.0.0 TT_APP_KEY=ttkey TT_APP_SECRET=<el mismo> TT_WEBHOOK_URL=htt
 # Simular una venta:  curl -X POST -d '{"producto":"1730000000000000001","sku":"1730000000000000101","cantidad":1}' http://127.0.0.1:8093/simular/venta
 ```
 
+**Cuenta de clienta (Fase 7)** — código por correo, sin servicios externos: Supabase local manda el correo a
+**Mailpit** (http://127.0.0.1:55324). En `/cuenta` escribe cualquier correo, abre Mailpit y copia el código de 6 dígitos.
+- Supabase Auth exige **Turnstile** al pedir el código y al entrar al panel con contraseña (`[auth.captcha]` en `config.toml`,
+  con la llave de prueba de Cloudflare). Necesitas `VITE_TURNSTILE_SITE_KEY` en `.env.local` y conexión a internet.
+- El tope local es de **2 correos por hora** (`[auth.rate_limit] email_sent`): si pruebas mucho, espera o súbelo solo en tu copia.
+- Para probar puntos sin comprar: `insert into public.puntos_movimientos (clienta_id, delta, motivo) select id, 200, 'ajuste' from public.clientas where correo = 'tu@correo';`
+
+**En la nube (Fase 9), en el panel de Supabase → Authentication:** activar CAPTCHA con Turnstile y la llave secreta real;
+"Confirm email" encendido; SMTP de **Resend** con el dominio verificado; pegar `supabase/templates/codigo.html` en las
+plantillas *Confirm signup* y *Magic Link* (asunto: "Tu código para entrar a Pupilentes AGO"); OTP de 6 dígitos y 600 s.
+
 Con credenciales de **prueba** reales de MP: deja `MP_API_URL` vacío, pon el access token de prueba y la clave secreta del webhook, y expón `webhook-mercadopago` con una URL https pública (MP no llama a `localhost`).
 
-Con eso arriba también corren las pruebas de seguridad de la Fase 3 (las mismas del trabajo `integracion` del CI):
+Con eso arriba también corren las pruebas de seguridad de las Fases 3 a 7 (las mismas del trabajo `integracion` del CI):
 ```bash
 eval "$(supabase status -o env | sed 's/^/export /')"
 SUPABASE_URL=$API_URL SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY SUPABASE_SECRET_KEY=$SECRET_KEY node --test --test-concurrency=1 "tests/seguridad/*.test.mjs"
