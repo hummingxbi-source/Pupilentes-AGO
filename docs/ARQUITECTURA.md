@@ -2,7 +2,7 @@
 
 > Documento vivo. Es la guía para que cualquier persona del equipo (con Claude) desarrolle el proyecto real, fase por fase.
 > **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
-> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v2.7) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local (§5, Fase 2). Fase 3 — código terminado** (rama `fase/3-pagos`, PR #13) con pruebas de integración y seguridad en el CI; falta probar con credenciales de prueba reales de MP. **Fase 4 — código en `fase/4-envios`** (sale de `fase/3-pagos`); falta la cuenta de Envia y los datos reales de envío. **Fase 5 — código en `fase/5-mercadolibre`** (sale de `fase/4-envios`); falta la app de ML de la clienta. Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
+> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v2.8) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local. Fases 3 y 4 — código en `main`** (PR #14, que incluyó el #13; 14 nov) con pruebas de integración y seguridad en el CI; faltan las pruebas con los sandbox reales de Mercado Pago y Envia (§9.3 T1–T3) y los datos de la clienta. **Fase 5 (Mercado Libre) — código en `fase/5-mercadolibre`; Fase 6 (TikTok Shop) — código en `fase/6-tiktok`** (sale de la 5); faltan las apps de la clienta. Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
 >
 > Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
 
@@ -454,11 +454,13 @@ Reglas del flujo:
 **Terminado cuando:** una semana sin descuadres entre ML y la BD.
 
 ### Fase 6 · TikTok Shop
-- [ ] App en Partner Center (iniciada en la Fase 0) y autorización de la **titular** de la tienda.
-- [ ] `webhook-tiktok` con HMAC, respuesta < 3 s y `waitUntil`.
-- [ ] Vinculación de SKUs, empuje de inventario y conciliación.
+- [ ] App en Partner Center y autorización de la **titular** de la tienda (T8). La revisión puede tardar de 3 a 7 días hábiles [13].
+- [x] `webhook-tiktok` con HMAC, respuesta < 3 s y `waitUntil`. *(14 nov. Firma: HMAC-SHA256 de `app_key` + cuerpo crudo con `app_secret`, en la cabecera `Authorization`; entrega al menos una vez con 4 reintentos; idempotencia por `tts_notification_id` [43].)*
+- [x] Vinculación de SKUs, empuje de inventario y conciliación. *(Mismo esquema que ML (migración `20261117000000_tiktok.sql`): tokens y `shop_cipher` en Vault, sincronización apagada por defecto, colchón, "Fulfilled by TikTok" tratado como Full. Inventario con `POST /product/202309/products/{id}/inventory/update`, solo con nuestros SKU [44]. TikTok manda una línea por pieza: se agrupan por SKU. Pagada desde `ON_HOLD`/`AWAITING_SHIPMENT`; `UNPAID` no mueve stock; `CANCELLED` regresa. Panel → Canales usa el mismo componente que ML.)*
+- [ ] ⚠️ Confirmar con la app real: el algoritmo exacto de la firma de peticiones, la URL de autorización para México (`TT_AUTH_URL`), si la redirección admite `?canal=tiktok` y si las líneas traen `quantity`. En local se usa `scripts/tiktok-simulado.mjs`, que rechaza peticiones mal firmadas.
+- [ ] ⚠️ Almacén: si la tienda tiene más de uno, poner su id en `config_tienda.tt_almacen` (con uno solo, TikTok no lo exige [44]).
 
-**Automáticas:** firma inválida → 401; mismo `tts_notification_id` → un descuento.
+**Automáticas:** firma inválida → 401; mismo `tts_notification_id` → un descuento. *(14 nov: pgTAP `08_tiktok`, Deno `tiktok.test.ts` y `tests/seguridad/fase6.test.mjs`.)*
 **Terminado cuando:** una semana sin descuadres en los 3 canales.
 
 ### Fase 7 · Cuenta de clienta y puntos
@@ -532,6 +534,8 @@ Reglas del flujo:
 | `panel-pedidos` | `duena` (validar, cancelar, reembolsar, regresar al inventario); `duena` o `ayudante` (avanzar entrega, ver comprobante) | Sesión válida + `aal2` + rol por acción |
 | `envios-guia`, `r2-firmar` | `duena` o `ayudante` | Sesión válida + `aal2` + rol |
 | `panel-ml` | `duena` (todo); `duena` o `ayudante` (ver estado) | Sesión válida + `aal2` + rol por acción |
+| `panel-tiktok` | igual que `panel-ml` | Sesión válida + `aal2` + rol por acción |
+| `webhook-tiktok` | TikTok Shop | Firma HMAC en `Authorization` (401 si no coincide) + `tts_notification_id` + `shop_id` propio + consulta de la orden a la API |
 | `webhook-mercadolibre` | Mercado Libre | `application_id` y `user_id` propios + `_id` del aviso + consulta de la orden a la API (ML no firma) |
 | `webhook-envia` | Envia.com | Secreto en la URL (≥ 24 caracteres) + `X-Webhook-Id` + consulta del estado a la API |
 | `webhook-*` | El proveedor | Firma o secreto + idempotencia + consulta al proveedor |
@@ -673,6 +677,11 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 - [ ] ¿Su cuenta maneja varios depósitos (multiorigen)?
 - [ ] Crear la app de desarrollador con **su** cuenta de ML, o autorizar la nuestra (T7).
 
+**TikTok Shop (Fase 6, preguntas del 14 nov).**
+- [ ] Registrar la app en TikTok Shop Partner Center y autorizarla como **titular** de la tienda (T8).
+- [ ] ¿Usa "Fulfilled by TikTok" en algún producto? ¿Cuántos almacenes tiene su tienda?
+- [ ] Colchón de pares para TikTok. *Provisional: 0.*
+
 ### 9.3 Trámites del equipo (no los puede hacer Claude)
 
 | # | Trámite | Para qué | Bloquea |
@@ -680,10 +689,11 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | T1 | App de Mercado Pago Developers + cuentas de prueba (vendedor y comprador) | Probar Checkout Pro de verdad (sandbox) | Cierre de la Fase 3 |
 | T2 | Cuenta de Envia.com en sandbox + token de API + webhook registrado | Probar cotización, guía y rastreo de verdad | Cierre de la Fase 4 |
 | T3 | Túnel `cloudflared` (o el proyecto Supabase de staging) para que MP y Envia lleguen a los webhooks | Los proveedores no llaman a `localhost` | T1 y T2 |
-| T4 | Unir los PR #13 (Fase 3) y el de la Fase 4 a `main` con el CI en verde | Que `main` tenga el proyecto al día | — |
+| T4 | ~~Unir los PR de las Fases 3 y 4~~ **Hecho (14 nov, PR #14; cerrar el #13 sin unir)**. Después: PR de la Fase 5 y luego el de la 6 | Que `main` tenga el proyecto al día | — |
 | T5 | Pasar el repo a privado (D1) | Seguridad | — |
 | T6 | Prueba a mano de la Fase 2 en una Mac o PC con Docker | Cierre formal de la Fase 2 | — |
 | T7 | App de desarrollador de Mercado Libre **con la cuenta de la clienta** (o que ella la autorice) | Fase 5 | Cierre de la Fase 5 |
+| T8 | App en TikTok Shop Partner Center (App key, App secret, Service ID) + autorización de la titular | Fase 6 | Cierre de la Fase 6 |
 
 ---
 
@@ -696,6 +706,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | 8 nov 2026 | **Backend en Supabase** (Edge Functions + Cron) en lugar de Cloudflare Functions; Cloudflare solo para frontend y R2. **Ramas:** `main` = demo congelada hasta el lanzamiento, `develop` = proyecto nuevo. La demo pasa a Cloudflare y se borra Vercel en la Fase 0. |
 | 8 nov 2026 | **Ramas finales:** `demo` (+ tag `demo-v1`) guarda la demo congelada; `main` = proyecto real; `fase/*` → PR a `main`. Vercel solo se **desconecta** (el link de la clienta sigue mostrando la demo). Se trabaja en local. Nuevos: `README.md` (cómo empezar) y `docs/FRONTEND.md` (la demo es punto de partida, no diseño cerrado). |
 | 10 nov 2026 | **v2 · Revisión de seguridad y pagos.** Detalle abajo. |
+| 14 nov 2026 | **v2.8 · Fase 6 (código, rama `fase/6-tiktok`, sale de `fase/5-mercadolibre`) y Fases 3–4 en `main`.** El PR #14 (Fase 4) se unió primero y trajo todo el #13 (Fase 3), que se cierra sin cambios. Fase 6: migración `20261117000000_tiktok.sql`, `_shared/tiktok.ts`, `panel-tiktok`, `webhook-tiktok`, TikTok en `cron-conciliar`, Canales genérico para ML y TikTok, `scripts/tiktok-simulado.mjs`. 14 pgTAP, 4 Deno y 5 de integración nuevas (38/38 en el CI). |
 | 14 nov 2026 | **v2.7 · Fase 5 (código, rama `fase/5-mercadolibre`, sale de `fase/4-envios`).** Migración `20261116000000_mercadolibre.sql`: tokens en Vault, `state` OAuth, concesión de refresco, `ml_registrar_orden`, vínculos, `ml_activar_sync` y cola de publicación con colchón y reintentos. Edge Functions `panel-ml` y `webhook-mercadolibre`; ML en `cron-conciliar`. Panel → Canales. `scripts/ml-simulado.mjs`. 27 pgTAP, 7 Deno y 7 de integración nuevas. Hallazgos del CI: `safeupdate` de Supabase rechaza `UPDATE` sin `WHERE` llamado por la API; el runtime de funciones se reinicia una vez al cargar (el CI ahora espera 3 respuestas seguidas). |
 | 14 nov 2026 | **v2.6 · Fase 4 (código, rama `fase/4-envios`, sale de `fase/3-pagos`).** Migración `20261115000000_envios.sql`: configuración de envío (⚠️ provisional), cotizaciones guardadas, `crear_pedido` con paquetería cotizada y dirección completa, guías (`envio_reservar_guia` / `envio_guardar_guia` / `envio_marcar_error`) y `registrar_rastreo_envio`. Edge Functions `envios-cotizar`, `envios-guia` y `webhook-envia`; `scripts/envia-simulado.mjs`. Caja con cotización por código postal; panel con "Generar guía" y "Descargar guía". 27 pgTAP, 6 Deno y 6 de integración nuevas. Pendiente: cuenta de Envia (sandbox), datos reales de envío y agenda de Metro/DiDi. |
 | 14 nov 2026 | **v2.5 · Revisión de la Fase 3.** Rama `fase/3-pagos`. Nueva migración `20261114000100_devoluciones.sql`: el reembolso o contracargo de un pedido que no salió devuelve el stock solo; si ya salió, la dueña lo confirma (acción `devolver` en `panel-pedidos` y botón en el panel); trigger que impide cambiar `pedidos.estado` fuera de `cambiar_estado_pedido`. `crear_pedido` serializa por clave de idempotencia (dos toques **simultáneos** daban 500 por la llave única; lo encontró la prueba nueva). Webhook de MP: clave del aviso sin `x-request-id`. CI: trabajo `integracion` con `tests/seguridad/fase3.test.mjs` (Edge Functions reales, MP simulado, panel con TOTP real). 20 pruebas pgTAP y 2 de Deno nuevas. D4 decidida. Las pruebas de Playwright citadas en la v2.4 no estaban en el repo; las sustituye el trabajo `integracion`. |
@@ -774,3 +785,5 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 40. Mercado Libre — Actualiza las variaciones (PUT con el arreglo de variaciones a modificar): https://developers.mercadolibre.com.ar/actualizacion-variacion-inmuebles
 41. Mercado Libre — Stock distribuido (Full lo administra ML; no se edita por API): https://developers.mercadolibre.com.ar/en_us/distributed-stock
 42. Mercado Libre — Stock multiorigen / User Products (no usar available_quantity en /items): https://developers.mercadolibre.com.ar/stock-multiwarehouse
+43. Hookdeck — Guía de webhooks de TikTok Shop (firma en Authorization sobre app_key + cuerpo; 4 reintentos; tts_notification_id): https://hookdeck.com/webhooks/platforms/guide-to-tiktok-shop-webhooks-features-and-best-practices
+44. Hemi — TikTok Update Stock (POST /product/202309/products/{product_id}/inventory/update; warehouse_id opcional con un solo almacén): https://help.useresponse.com/hemi/knowledge-base/article/marketplaces-tiktok-marketplace-integration-v2-tiktok-product-management-tiktok-update-stock_1
