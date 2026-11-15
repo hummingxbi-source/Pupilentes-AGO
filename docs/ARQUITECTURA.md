@@ -2,7 +2,7 @@
 
 > Documento vivo. Es la guía para que cualquier persona del equipo (con Claude) desarrolle el proyecto real, fase por fase.
 > **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
-> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v2.8) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local. Fases 3 y 4 — código en `main`** (PR #14, que incluyó el #13; 14 nov) con pruebas de integración y seguridad en el CI; faltan las pruebas con los sandbox reales de Mercado Pago y Envia (§9.3 T1–T3) y los datos de la clienta. **Fase 5 (Mercado Libre) — código en `fase/5-mercadolibre`; Fase 6 (TikTok Shop) — código en `fase/6-tiktok`** (sale de la 5); faltan las apps de la clienta. Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
+> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v2.9) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local. Fases 3, 4, 5 y 6 — código terminado en `main`** (PR #13–#16, 14 nov) con pruebas de integración y seguridad en el CI contra simuladores. Sus pruebas con los servicios reales (Mercado Pago, Envia, Mercado Libre, TikTok Shop) se hacen todas juntas en la **Fase 8** (decisión del 14 nov); también faltan los datos de la clienta. **Siguiente: Fase 7** (cuenta de clienta y puntos). Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
 >
 > Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
 
@@ -421,6 +421,8 @@ Reglas del flujo:
 - [x] Trabajo `integracion` del CI con `tests/seguridad` (§7.1): las Edge Functions reales contra Supabase local, Mercado Pago simulado y Turnstile de prueba, incluido el panel con MFA real. *(14 nov.)*
 - [ ] Probar con las **credenciales de prueba reales** de Mercado Pago (tarjetas de prueba y webhook público) antes de cerrar la fase. En local se usa `scripts/mp-simulado.mjs`. En esa prueba confirmar también que `id` y `date_created` del aviso no cambian entre reintentos (§3.3 A, regla 6).
 
+> **Cierre en la Fase 8 (14 nov):** el código de esta fase está terminado y probado contra el simulador. Las casillas de prueba con el servicio real y las verificaciones ⚠️ que dependen de él se hacen en el bloque "Pruebas con servicios reales" de la Fase 8.
+
 **Probar a mano:** compra con tarjeta de prueba; con OXXO de prueba (si aplica); por transferencia aprobada y rechazada; pago abandonado (se libera la reserva); doble toque en "pagar" (un solo pedido); dos compras simultáneas de la última pieza (solo una pasa); pagar después de vencida la reserva.
 **Automáticas:** todos los casos de §6.3 marcados como Fase 3.
 **Terminado cuando:** 10 compras de prueba seguidas sin descuadre entre pedidos, pagos y stock, y el CI está en verde.
@@ -433,6 +435,8 @@ Reglas del flujo:
 - [ ] ⚠️ Datos reales de envío en `config_tienda` (la dueña los edita): dirección de origen, peso y medidas de la caja de un par, paqueterías a cotizar y si se suma un cargo extra al costo de Envia (hoy: 0).
 - [ ] Cuenta de Envia.com (sandbox) y prueba manual: cotizar a 3 CP, generar guía y ver el rastreo. En esa prueba confirmar: los textos reales de `status` (la traducción a enviado/entregado/incidencia está en `_shared/envia.ts`), el formato del campo `state` (nombre o clave del estado) y si Envia reintenta un webhook que no recibió 2xx.
 - [ ] Saldo: Envia cobra la guía del saldo de la cuenta (`currentBalance` en la respuesta [16]); definir quién recarga y a nombre de quién queda la cuenta.
+
+> **Cierre en la Fase 8 (14 nov):** el código de esta fase está terminado y probado contra el simulador. Las casillas de prueba con el servicio real y las verificaciones ⚠️ que dependen de él se hacen en el bloque "Pruebas con servicios reales" de la Fase 8.
 
 **Probar a mano:** cotizar a 3 CP; generar guía en sandbox; ver el rastreo.
 **Automáticas:** CP inválido → error claro; API caída → mensaje amable y error registrado; costo de envío alterado en el navegador → se cobra el del servidor; webhook de Envia sin secreto → 401. *(14 nov: en pgTAP `06_envios`, Deno `envios.test.ts` y `tests/seguridad/fase4.test.mjs` contra `scripts/envia-simulado.mjs`.)*
@@ -449,6 +453,8 @@ Reglas del flujo:
 - [ ] ⚠️ Si la cuenta de la clienta tiene **multiorigen** (varios depósitos), ML ignora `available_quantity` en `/items` y hay que usar `/user-products/{id}/stock` [42]. Verificarlo con su cuenta real.
 - [ ] App de desarrollador de ML con la cuenta de la clienta (T7), notificaciones `orders_v2` apuntando a `webhook-mercadolibre` y prueba manual. En local se usa `scripts/ml-simulado.mjs`.
 
+> **Cierre en la Fase 8 (14 nov):** el código de esta fase está terminado y probado contra el simulador. Las casillas de prueba con el servicio real y las verificaciones ⚠️ que dependen de él se hacen en el bloque "Pruebas con servicios reales" de la Fase 8.
+
 **Probar a mano:** una compra real barata en ML baja el stock en el panel y en las otras publicaciones; un ajuste en el panel cambia el stock en ML.
 **Automáticas:** evento duplicado → un descuento; evento con `user_id` o `application_id` ajenos → ignorado; webhook perdido → la conciliación lo recupera. *(14 nov: pgTAP `07_mercadolibre`, Deno `ml.test.ts` y `tests/seguridad/fase5.test.mjs` contra el simulador, incluida la prueba de que ninguna variación ajena se borra.)*
 **Terminado cuando:** una semana sin descuadres entre ML y la BD.
@@ -459,6 +465,8 @@ Reglas del flujo:
 - [x] Vinculación de SKUs, empuje de inventario y conciliación. *(Mismo esquema que ML (migración `20261117000000_tiktok.sql`): tokens y `shop_cipher` en Vault, sincronización apagada por defecto, colchón, "Fulfilled by TikTok" tratado como Full. Inventario con `POST /product/202309/products/{id}/inventory/update`, solo con nuestros SKU [44]. TikTok manda una línea por pieza: se agrupan por SKU. Pagada desde `ON_HOLD`/`AWAITING_SHIPMENT`; `UNPAID` no mueve stock; `CANCELLED` regresa. Panel → Canales usa el mismo componente que ML.)*
 - [ ] ⚠️ Confirmar con la app real: el algoritmo exacto de la firma de peticiones, la URL de autorización para México (`TT_AUTH_URL`), si la redirección admite `?canal=tiktok` y si las líneas traen `quantity`. En local se usa `scripts/tiktok-simulado.mjs`, que rechaza peticiones mal firmadas.
 - [ ] ⚠️ Almacén: si la tienda tiene más de uno, poner su id en `config_tienda.tt_almacen` (con uno solo, TikTok no lo exige [44]).
+
+> **Cierre en la Fase 8 (14 nov):** el código de esta fase está terminado y probado contra el simulador. Las casillas de prueba con el servicio real y las verificaciones ⚠️ que dependen de él se hacen en el bloque "Pruebas con servicios reales" de la Fase 8.
 
 **Automáticas:** firma inválida → 401; mismo `tts_notification_id` → un descuento. *(14 nov: pgTAP `08_tiktok`, Deno `tiktok.test.ts` y `tests/seguridad/fase6.test.mjs`.)*
 **Terminado cuando:** una semana sin descuadres en los 3 canales.
@@ -479,6 +487,13 @@ Reglas del flujo:
 - [ ] Lighthouse en móvil contra la meta de §3.4.
 - [ ] Alertas completas: webhooks, conciliación, respaldo, tokens por vencer, tamaño de BD.
 - [ ] **Prueba de restauración del respaldo** (descifrar y levantar en local).
+
+**Pruebas con servicios reales** *(movidas aquí el 14 nov: el código de las Fases 3–6 está terminado y probado con simuladores; estas pruebas se hacen juntas al final)*:
+- [ ] Túnel o proyecto de staging para que los proveedores lleguen a los webhooks (T3).
+- [ ] **Mercado Pago** (T1): cuentas de prueba, tarjetas de prueba y webhook público; confirmar que `id` y `date_created` del aviso no cambian entre reintentos. Luego las pruebas a mano y el criterio de "terminado" de la Fase 3. *(Hoy nadie del equipo tiene cuenta de Mercado Pago.)*
+- [ ] **Envia.com** (T2): sandbox, cotizar a 3 CP, generar guía, ver rastreo; confirmar textos de `status`, formato de `state` y si reintenta webhooks. Luego el criterio de la Fase 4.
+- [ ] **Mercado Libre** (T7): app con la cuenta de la clienta, notificaciones `orders_v2`, compra real barata y ajuste desde el panel; verificar multiorigen. Luego el criterio de la Fase 5.
+- [ ] **TikTok Shop** (T8): app en Partner Center y autorización de la titular; confirmar firma de peticiones, `TT_AUTH_URL`, redirección con `?canal=tiktok` y `quantity` en las líneas. Luego el criterio de la Fase 6.
 
 ### Fase 9 · Lanzamiento
 - [ ] Catálogo real cargado (tarea paralela C).
@@ -686,14 +701,14 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 
 | # | Trámite | Para qué | Bloquea |
 |---|---|---|---|
-| T1 | App de Mercado Pago Developers + cuentas de prueba (vendedor y comprador) | Probar Checkout Pro de verdad (sandbox) | Cierre de la Fase 3 |
-| T2 | Cuenta de Envia.com en sandbox + token de API + webhook registrado | Probar cotización, guía y rastreo de verdad | Cierre de la Fase 4 |
+| T1 | App de Mercado Pago Developers + cuentas de prueba (vendedor y comprador) | Probar Checkout Pro de verdad (sandbox) | Pruebas reales de la Fase 8 |
+| T2 | Cuenta de Envia.com en sandbox + token de API + webhook registrado | Probar cotización, guía y rastreo de verdad | Pruebas reales de la Fase 8 |
 | T3 | Túnel `cloudflared` (o el proyecto Supabase de staging) para que MP y Envia lleguen a los webhooks | Los proveedores no llaman a `localhost` | T1 y T2 |
-| T4 | ~~Unir los PR de las Fases 3 y 4~~ **Hecho (14 nov, PR #14; cerrar el #13 sin unir)**. Después: PR de la Fase 5 y luego el de la 6 | Que `main` tenga el proyecto al día | — |
+| T4 | ~~Unir los PR de las Fases 3 a 6~~ **Hecho (14 nov, PR #13–#16)** | Que `main` tenga el proyecto al día | — |
 | T5 | Pasar el repo a privado (D1) | Seguridad | — |
 | T6 | Prueba a mano de la Fase 2 en una Mac o PC con Docker | Cierre formal de la Fase 2 | — |
-| T7 | App de desarrollador de Mercado Libre **con la cuenta de la clienta** (o que ella la autorice) | Fase 5 | Cierre de la Fase 5 |
-| T8 | App en TikTok Shop Partner Center (App key, App secret, Service ID) + autorización de la titular | Fase 6 | Cierre de la Fase 6 |
+| T7 | App de desarrollador de Mercado Libre **con la cuenta de la clienta** (o que ella la autorice) | Fase 5 | Pruebas reales de la Fase 8 |
+| T8 | App en TikTok Shop Partner Center (App key, App secret, Service ID) + autorización de la titular | Fase 6 | Pruebas reales de la Fase 8 |
 
 ---
 
@@ -706,6 +721,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | 8 nov 2026 | **Backend en Supabase** (Edge Functions + Cron) en lugar de Cloudflare Functions; Cloudflare solo para frontend y R2. **Ramas:** `main` = demo congelada hasta el lanzamiento, `develop` = proyecto nuevo. La demo pasa a Cloudflare y se borra Vercel en la Fase 0. |
 | 8 nov 2026 | **Ramas finales:** `demo` (+ tag `demo-v1`) guarda la demo congelada; `main` = proyecto real; `fase/*` → PR a `main`. Vercel solo se **desconecta** (el link de la clienta sigue mostrando la demo). Se trabaja en local. Nuevos: `README.md` (cómo empezar) y `docs/FRONTEND.md` (la demo es punto de partida, no diseño cerrado). |
 | 10 nov 2026 | **v2 · Revisión de seguridad y pagos.** Detalle abajo. |
+| 14 nov 2026 | **v2.9 · Pruebas con servicios reales pasan a la Fase 8.** Fases 3–6 unidas a `main` (PR #13–#16) con el CI en verde. Las pruebas con Mercado Pago, Envia, Mercado Libre y TikTok Shop (T1–T3, T7, T8) y sus verificaciones ⚠️ se agrupan en un bloque de la Fase 8, para avanzar con el código sin esperar cuentas. Siguiente: Fase 7. |
 | 14 nov 2026 | **v2.8 · Fase 6 (código, rama `fase/6-tiktok`, sale de `fase/5-mercadolibre`) y Fases 3–4 en `main`.** El PR #14 (Fase 4) se unió primero y trajo todo el #13 (Fase 3), que se cierra sin cambios. Fase 6: migración `20261117000000_tiktok.sql`, `_shared/tiktok.ts`, `panel-tiktok`, `webhook-tiktok`, TikTok en `cron-conciliar`, Canales genérico para ML y TikTok, `scripts/tiktok-simulado.mjs`. 14 pgTAP, 4 Deno y 5 de integración nuevas (38/38 en el CI). |
 | 14 nov 2026 | **v2.7 · Fase 5 (código, rama `fase/5-mercadolibre`, sale de `fase/4-envios`).** Migración `20261116000000_mercadolibre.sql`: tokens en Vault, `state` OAuth, concesión de refresco, `ml_registrar_orden`, vínculos, `ml_activar_sync` y cola de publicación con colchón y reintentos. Edge Functions `panel-ml` y `webhook-mercadolibre`; ML en `cron-conciliar`. Panel → Canales. `scripts/ml-simulado.mjs`. 27 pgTAP, 7 Deno y 7 de integración nuevas. Hallazgos del CI: `safeupdate` de Supabase rechaza `UPDATE` sin `WHERE` llamado por la API; el runtime de funciones se reinicia una vez al cargar (el CI ahora espera 3 respuestas seguidas). |
 | 14 nov 2026 | **v2.6 · Fase 4 (código, rama `fase/4-envios`, sale de `fase/3-pagos`).** Migración `20261115000000_envios.sql`: configuración de envío (⚠️ provisional), cotizaciones guardadas, `crear_pedido` con paquetería cotizada y dirección completa, guías (`envio_reservar_guia` / `envio_guardar_guia` / `envio_marcar_error`) y `registrar_rastreo_envio`. Edge Functions `envios-cotizar`, `envios-guia` y `webhook-envia`; `scripts/envia-simulado.mjs`. Caja con cotización por código postal; panel con "Generar guía" y "Descargar guía". 27 pgTAP, 6 Deno y 6 de integración nuevas. Pendiente: cuenta de Envia (sandbox), datos reales de envío y agenda de Metro/DiDi. |
