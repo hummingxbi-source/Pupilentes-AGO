@@ -145,8 +145,11 @@ jobs:
       - name: Servir las funciones
         run: |
           nohup supabase functions serve --env-file "$RUNNER_TEMP/funciones.env" > "$RUNNER_TEMP/funciones.log" 2>&1 &
-          for i in $(seq 1 90); do
-            if curl -fs http://127.0.0.1:55321/functions/v1/salud > /dev/null; then echo "funciones listas"; exit 0; fi
+          # El runtime puede reiniciarse una vez al cargar todas las funciones: se exigen 3 respuestas seguidas
+          seguidas=0
+          for i in $(seq 1 120); do
+            if curl -fs http://127.0.0.1:55321/functions/v1/salud > /dev/null; then seguidas=$((seguidas+1)); else seguidas=0; fi
+            if [ "$seguidas" -ge 3 ]; then echo "funciones listas"; exit 0; fi
             sleep 2
           done
           echo "las funciones no arrancaron"; cat "$RUNNER_TEMP/funciones.log"; exit 1
