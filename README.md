@@ -74,6 +74,13 @@ MP_SIM_HOST=0.0.0.0 MP_WEBHOOK_SECRET=<el mismo> MP_NOTIFICATION_URL=http://127.
 # 3) supabase functions serve  +  npm run dev  → compra en /checkout; MP simulado deja elegir aprobado, rechazado o SPEI.
 #    Acreditar un SPEI pendiente: curl -X POST -d '{"status":"approved"}' http://127.0.0.1:8090/simular/pagos/<payment_id>
 ```
+**Envíos (Fase 4)** sin cuenta de Envia: simulador local, igual que MP.
+```bash
+# supabase/functions/.env:  ENVIA_TOKEN=TEST-local  ENVIA_API_URL=http://host.docker.internal:8091  ENVIA_WEBHOOK_SECRET=<24+ caracteres>
+MP_SIM_HOST=0.0.0.0 ENVIA_WEBHOOK_URL="http://127.0.0.1:55321/functions/v1/webhook-envia?s=<el mismo secreto>" node scripts/envia-simulado.mjs
+# Mover una guía:  curl -X POST -d '{"trackingNumber":"SIM100001","status":"In transit"}' http://127.0.0.1:8091/simular/rastreo
+```
+
 Con credenciales de **prueba** reales de MP: deja `MP_API_URL` vacío, pon el access token de prueba y la clave secreta del webhook, y expón `webhook-mercadopago` con una URL https pública (MP no llama a `localhost`).
 
 Con eso arriba también corren las pruebas de seguridad de la Fase 3 (las mismas del trabajo `integracion` del CI):

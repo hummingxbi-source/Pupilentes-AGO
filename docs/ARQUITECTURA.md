@@ -2,7 +2,7 @@
 
 > Documento vivo. Es la guía para que cualquier persona del equipo (con Claude) desarrolle el proyecto real, fase por fase.
 > **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
-> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v2.5) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local (§5, Fase 2). Fase 3 — código terminado** (rama `fase/3-pagos`, PR #13) con pruebas de integración y seguridad en el CI; falta probar con credenciales de prueba reales de MP. Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
+> Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v2.6) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local (§5, Fase 2). Fase 3 — código terminado** (rama `fase/3-pagos`, PR #13) con pruebas de integración y seguridad en el CI; falta probar con credenciales de prueba reales de MP. **Fase 4 — código en `fase/4-envios`** (sale de `fase/3-pagos`); falta la cuenta de Envia y los datos reales de envío. Pendiente del equipo: repo a privado. Nube (Supabase, Pages, R2) pospuesta hasta antes del lanzamiento
 >
 > Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
 
@@ -426,13 +426,16 @@ Reglas del flujo:
 **Terminado cuando:** 10 compras de prueba seguidas sin descuadre entre pedidos, pagos y stock, y el CI está en verde.
 
 ### Fase 4 · Envíos (Envia.com)
-- [ ] `envios-cotizar` por CP en el checkout; la clienta elige paquetería y paga el envío. `pedidos-crear` vuelve a cotizar en el servidor.
-- [ ] `envios-guia` desde el panel → PDF a R2 privado + rastreo en el pedido.
-- [ ] `webhook-envia` → estado del pedido. Se autentica con un secreto en la URL y se confirma el estado consultando la API de Envia.
-- [ ] Metro y DiDi: agenda de entregas en el panel.
+- [x] `envios-cotizar` por CP en el checkout; la clienta elige paquetería y paga el envío. *(14 nov. Cambio respecto al plan: en vez de volver a cotizar con Envia al crear el pedido, `envios-cotizar` **guarda cada opción en el servidor** (`privado.cotizaciones_envio`, vigencia 30 min) y `pedidos-crear` solo acepta su id, validando que siga vigente y que el CP y las piezas sean los mismos. El precio sigue saliendo del servidor y la clienta paga exactamente lo que vio. Envia cotiza una paquetería por petición [16]: se piden en paralelo las de `config_tienda.envio_paqueterias`.)*
+- [x] `envios-guia` desde el panel → PDF a R2 privado + rastreo en el pedido. *(Una sola guía activa por pedido: un doble clic no compra dos. Sin el bucket de R2 se guarda el enlace del PDF que da Envia.)*
+- [x] `webhook-envia` → estado del pedido. Se autentica con un secreto en la URL y se confirma el estado consultando la API de Envia. *(Envia no documenta firma; recomienda responder 2xx en menos de 5 s y deduplicar con `X-Webhook-Id` [16].)*
+- [ ] ⚠️ Metro y DiDi: agenda de entregas en el panel. *(Pendiente de definir con la clienta qué días y horarios ofrece; hoy la caja propone 5 días y 3 horarios fijos.)*
+- [ ] ⚠️ Datos reales de envío en `config_tienda` (la dueña los edita): dirección de origen, peso y medidas de la caja de un par, paqueterías a cotizar y si se suma un cargo extra al costo de Envia (hoy: 0).
+- [ ] Cuenta de Envia.com (sandbox) y prueba manual: cotizar a 3 CP, generar guía y ver el rastreo. En esa prueba confirmar: los textos reales de `status` (la traducción a enviado/entregado/incidencia está en `_shared/envia.ts`), el formato del campo `state` (nombre o clave del estado) y si Envia reintenta un webhook que no recibió 2xx.
+- [ ] Saldo: Envia cobra la guía del saldo de la cuenta (`currentBalance` en la respuesta [16]); definir quién recarga y a nombre de quién queda la cuenta.
 
 **Probar a mano:** cotizar a 3 CP; generar guía en sandbox; ver el rastreo.
-**Automáticas:** CP inválido → error claro; API caída → mensaje amable y error registrado; costo de envío alterado en el navegador → se cobra el del servidor; webhook de Envia sin secreto → 401.
+**Automáticas:** CP inválido → error claro; API caída → mensaje amable y error registrado; costo de envío alterado en el navegador → se cobra el del servidor; webhook de Envia sin secreto → 401. *(14 nov: en pgTAP `06_envios`, Deno `envios.test.ts` y `tests/seguridad/fase4.test.mjs` contra `scripts/envia-simulado.mjs`.)*
 **Terminado cuando:** un envío real llega con guía generada desde el panel.
 
 ### Fase 5 · Mercado Libre
@@ -517,12 +520,13 @@ Reglas del flujo:
 | Función | Quién | Cómo se comprueba |
 |---|---|---|
 | `salud` | Cualquiera | — |
-| `pedidos-crear`, `envios-cotizar` | Público | Turnstile + límite + zod |
+| `pedidos-crear`, `envios-cotizar` | Público | Turnstile + límite + zod (peso y valor de la cotización salen de la BD) |
 | `pedidos-rastrear` | Público | Token, o folio + 4 dígitos + Turnstile + límite por folio |
 | `comprobantes-subir` | Público con token del pedido | Token + Turnstile + límite + tipo y tamaño |
 | `panel-stock`, `panel-catalogo` | `duena` | Sesión válida + `aal2` + rol |
 | `panel-pedidos` | `duena` (validar, cancelar, reembolsar, regresar al inventario); `duena` o `ayudante` (avanzar entrega, ver comprobante) | Sesión válida + `aal2` + rol por acción |
 | `envios-guia`, `r2-firmar` | `duena` o `ayudante` | Sesión válida + `aal2` + rol |
+| `webhook-envia` | Envia.com | Secreto en la URL (≥ 24 caracteres) + `X-Webhook-Id` + consulta del estado a la API |
 | `webhook-*` | El proveedor | Firma o secreto + idempotencia + consulta al proveedor |
 | `cron-conciliar` | Supabase Cron | Secreto de Vault en la cabecera |
 
@@ -656,6 +660,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 | 8 nov 2026 | **Backend en Supabase** (Edge Functions + Cron) en lugar de Cloudflare Functions; Cloudflare solo para frontend y R2. **Ramas:** `main` = demo congelada hasta el lanzamiento, `develop` = proyecto nuevo. La demo pasa a Cloudflare y se borra Vercel en la Fase 0. |
 | 8 nov 2026 | **Ramas finales:** `demo` (+ tag `demo-v1`) guarda la demo congelada; `main` = proyecto real; `fase/*` → PR a `main`. Vercel solo se **desconecta** (el link de la clienta sigue mostrando la demo). Se trabaja en local. Nuevos: `README.md` (cómo empezar) y `docs/FRONTEND.md` (la demo es punto de partida, no diseño cerrado). |
 | 10 nov 2026 | **v2 · Revisión de seguridad y pagos.** Detalle abajo. |
+| 14 nov 2026 | **v2.6 · Fase 4 (código, rama `fase/4-envios`, sale de `fase/3-pagos`).** Migración `20261115000000_envios.sql`: configuración de envío (⚠️ provisional), cotizaciones guardadas, `crear_pedido` con paquetería cotizada y dirección completa, guías (`envio_reservar_guia` / `envio_guardar_guia` / `envio_marcar_error`) y `registrar_rastreo_envio`. Edge Functions `envios-cotizar`, `envios-guia` y `webhook-envia`; `scripts/envia-simulado.mjs`. Caja con cotización por código postal; panel con "Generar guía" y "Descargar guía". 27 pgTAP, 6 Deno y 6 de integración nuevas. Pendiente: cuenta de Envia (sandbox), datos reales de envío y agenda de Metro/DiDi. |
 | 14 nov 2026 | **v2.5 · Revisión de la Fase 3.** Rama `fase/3-pagos`. Nueva migración `20261114000100_devoluciones.sql`: el reembolso o contracargo de un pedido que no salió devuelve el stock solo; si ya salió, la dueña lo confirma (acción `devolver` en `panel-pedidos` y botón en el panel); trigger que impide cambiar `pedidos.estado` fuera de `cambiar_estado_pedido`. `crear_pedido` serializa por clave de idempotencia (dos toques **simultáneos** daban 500 por la llave única; lo encontró la prueba nueva). Webhook de MP: clave del aviso sin `x-request-id`. CI: trabajo `integracion` con `tests/seguridad/fase3.test.mjs` (Edge Functions reales, MP simulado, panel con TOTP real). 20 pruebas pgTAP y 2 de Deno nuevas. D4 decidida. Las pruebas de Playwright citadas en la v2.4 no estaban en el repo; las sustituye el trabajo `integracion`. |
 | 11 nov 2026 | **v2.4 · Fase 3 (código).** Rama `fase/3-pagos`. SQL: `config_tienda` y `tarifas_entrega` (envío siempre en servidor), máquina de estados (`cambiar_estado_pedido`), `crear_pedido` (idempotencia, topes, precios de la BD, `total_cambio`), `registrar_pago_mp` (monto y moneda, SPEI pendiente extiende la reserva, pago tardío → `pagado_sin_stock`, reembolso, contracargo → "no entregar"), transferencia (aviso y validación), rastreo sin datos personales, alertas e idempotencia de webhooks; 44 pruebas pgTAP nuevas. Edge Functions: `pedidos-crear`, `webhook-mercadopago`, `pedidos-rastrear`, `comprobantes-subir`, `panel-pedidos` y alertas por correo en `cron-conciliar`; 15 pruebas Deno con firma HMAC real. Frontend: caja como invitada con Turnstile, página del pedido (seguimiento, datos de transferencia, comprobante), acciones y alertas en el panel, CSP estricta. **Cambios respecto al plan:** `panel-transferencias` y `pagos-reembolsar` se unieron en `panel-pedidos` (una función con permisos por acción); el comprobante se sube con URL firmada a R2 + verificación posterior (los modos de archivo esperan al bucket; mientras, WhatsApp). Verificado con un Mercado Pago simulado (`scripts/mp-simulado.mjs`, webhooks firmados): 33/33 en Playwright, cuadre ventas = movimientos. |
 | 11 nov 2026 | **v2.3 · Fase 2 (código).** Rama `fase/2-panel`: login con MFA (TOTP) y roles; MFA forzado en la BD (política restrictiva aal2 en 16 tablas) y en las funciones; permisos de escritura por columna solo para la dueña (`stock` nunca); auditoría por trigger; `panel-stock` (ajuste y Excel con vista previa, todo o nada), `panel-catalogo` y `r2-firmar`; cuentas por script (`cuentas-panel.mjs`). **Una sola implementación del guardado de catálogo:** `aplicar_catalogo` (SQL) la usan terminal, panel y semilla. Verificado con un mini-Supabase (GoTrue + PostgREST + funciones) y Playwright con códigos TOTP reales: 37/37. Hallazgo: aws4fetch no firma `Content-Type` por defecto; se activó `allHeaders`. |

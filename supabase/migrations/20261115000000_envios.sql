@@ -50,6 +50,9 @@ create table privado.cotizaciones_envio (
   expira_en   timestamptz not null
 );
 create index cotizaciones_expira_idx on privado.cotizaciones_envio (expira_en);
+-- Regla del proyecto: RLS en todas las tablas, también en `privado` (la API no lo expone; defensa en profundidad)
+alter table privado.cotizaciones_envio enable row level security;
+revoke all on privado.cotizaciones_envio from public, anon, authenticated;
 
 -- p_opciones = [{ carrier, servicio, descripcion?, entrega?, costo }]
 create function public.guardar_cotizaciones(p_cp text, p_piezas integer, p_opciones jsonb)
