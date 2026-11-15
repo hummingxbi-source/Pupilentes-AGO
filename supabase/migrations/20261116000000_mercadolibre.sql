@@ -138,7 +138,7 @@ begin
   delete from privado.integraciones where canal = 'ml';
   -- Se vacía el secreto (las funciones de Vault no borran; así no queda ningún token guardado)
   if v_id is not null then perform vault.update_secret(v_id, '{}'); end if;
-  update public.config_tienda set ml_sync_activo = false;
+  update public.config_tienda set ml_sync_activo = false where id;   -- safeupdate exige WHERE
   insert into public.auditoria_panel (usuario, accion, tabla, registro) values (p_usuario, 'ml_desconectar', 'integraciones', 'ml');
 end
 $$;
@@ -235,7 +235,7 @@ begin
   if p_activo and not exists (select 1 from privado.integraciones where canal = 'ml' and estado = 'conectada') then
     raise exception 'ml_no_conectado' using errcode = 'P0001';
   end if;
-  update public.config_tienda set ml_sync_activo = p_activo;
+  update public.config_tienda set ml_sync_activo = p_activo where id;   -- safeupdate exige WHERE
   if p_activo then   -- al activar se publica TODO lo vinculado (la BD es la fuente de verdad)
     insert into privado.cola_sync (variante_id, canal)
     select distinct variante_id, 'ml' from public.publicaciones_canal where canal = 'ml' and activo and logistica = 'propia'
