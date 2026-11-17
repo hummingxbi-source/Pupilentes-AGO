@@ -127,6 +127,20 @@ npm run test:concurrencia                      # última pieza comprada en paral
 npm audit --omit=dev --audit-level=high
 ```
 
+### Pruebas de pantalla (Playwright · Fase 8)
+Plan completo en [`docs/PLAN-PRUEBAS.md`](docs/PLAN-PRUEBAS.md) (§10). Necesitan Supabase local arriba (`supabase start`) y `.env.local` lleno.
+```bash
+npm install                     # trae @playwright/test y @axe-core/playwright
+npm run e2e:navegadores         # solo la primera vez: descarga Chromium, Firefox y WebKit
+npm run test:e2e:humo           # humo: cada ruta carga sin errores (Chromium, 1280 px)
+npm run test:e2e                # todo, en los 6 perfiles (3 navegadores, 4 anchos)
+npm run test:e2e:ui             # modo visual para escribir y depurar pruebas
+npm run e2e:reporte             # abre el último reporte
+```
+- Las pruebas importan `test` de `tests/e2e/_apoyo.mjs`: fallan solas si hay errores de JavaScript, de consola, de CSP o respuestas HTTP 4xx/5xx.
+- Para vigilar que el nombre de la dueña no aparezca en la web: `E2E_PROHIBIDO="Nombre Apellido" npm run test:e2e` (nunca se escribe en el repo).
+- En el CI corre el humo en cada PR a `main` (trabajo `e2e`).
+
 ## Stack
 - **Frontend:** Vite + React 18, React Router, Zustand, GSAP → Cloudflare Pages
 - **Backend:** Supabase Edge Functions (Deno/TS) + Supabase Cron

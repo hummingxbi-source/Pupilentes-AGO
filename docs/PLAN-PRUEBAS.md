@@ -211,7 +211,7 @@ Lo que una sola persona probando nunca encuentra. Se hacen con dos navegadores o
 
 ## 7. Pruebas automáticas por agregar
 
-`tests/e2e` está vacía y Playwright aún no está instalado. Orden propuesto:
+Playwright ya está instalado y `tests/e2e/pantallas/humo.spec.mjs` corre en el CI en cada PR a `main`. Lo que sigue, en orden:
 
 | Prioridad | Archivo propuesto | Cubre |
 |---|---|---|
@@ -263,7 +263,7 @@ Todo lo anterior prueba que el servidor responde bien. Esta sección prueba que 
 
 ### 10.1 Cómo se corren
 
-- **Herramienta:** Playwright (aún no está en `package.json`), contra `npm run dev` + Supabase local + simuladores, igual que el trabajo `integracion` del CI.
+- **Herramienta:** Playwright 1.65.1 + `@axe-core/playwright` 4.14.0 (instalados el 17 nov 2026; configuración en `playwright.config.mjs`, apoyo en `tests/e2e/_apoyo.mjs`), contra `npm run dev` + Supabase local + simuladores, igual que el trabajo `integracion` del CI.
 - **Navegadores:** Chromium, WebKit (equivale a Safari de iPhone) y Firefox.
 - **Anchos:** 360 px (Android chico), 390 px (iPhone), 768 px (tableta) y 1280 px (laptop). El CSS cambia de diseño entre 600 y 960 px (`max-width` de 600, 700, 760, 860, 900 y 960 px en `src`), así que 768 cae justo en la zona de cambio.
 - **En cada pantalla, siempre:** 0 errores en la consola; 0 violaciones de CSP; ninguna petición con respuesta 4xx/5xx que no sea parte del caso; nada se sale de la pantalla a lo ancho (sin scroll horizontal); el nombre de la dueña no aparece (I9).
