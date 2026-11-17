@@ -16,8 +16,10 @@ for (const { ruta, nombre } of RUTAS) {
   test(`${nombre} (${ruta}) carga sin errores`, async ({ page }) => {
     const r = await page.goto(ruta);
     expect(r?.status(), 'la ruta responde (BrowserRouter, sin 404)').toBeLessThan(400);
-    await page.waitForLoadState('networkidle');
-    await expect(page.locator('#root')).not.toBeEmpty();
+    // No se espera 'networkidle': Turnstile (panel, cuenta y rastreo) mantiene peticiones abiertas
+    // y la red nunca queda en silencio. Se espera a que el contenido principal esté visible.
+    await page.waitForLoadState('load');
+    await expect(page.locator('main').first()).toBeVisible();
     await sinScrollHorizontal(page);
     await sinPalabrasProhibidas(page);
   });
