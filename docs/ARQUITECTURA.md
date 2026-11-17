@@ -4,7 +4,7 @@
 > **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
 > Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v3.0) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local. Fases 3 a 7 — código terminado** (3–6 en `main` con PR #13–#16; 7 en la rama `fase/7-cuenta`, 14 nov) con pruebas de integración y seguridad en el CI contra simuladores y contra Supabase Auth local (código por correo con Mailpit y Turnstile de prueba). De la Fase 8 ya está el código de **alertas completas**. **Todo el código del backend está escrito: lo que queda es la Fase 8 (pruebas E2E, ZAP, Lighthouse, revisión de RLS, restauración del respaldo y las pruebas con los servicios reales), los datos de la clienta y la Fase 9 (nube y lanzamiento).** Pendiente del equipo: repo a privado
 >
-> Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
+> Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño) · [`docs/PLAN-PRUEBAS.md`](PLAN-PRUEBAS.md) (plan de pruebas de la Fase 8).
 
 ---
 
@@ -483,7 +483,7 @@ Reglas del flujo:
 **Automáticas:** una clienta no ve datos de otra (RLS); no se usan más puntos de los disponibles ni dos veces en paralelo; límite de envío de códigos. *(14 nov: pgTAP `09_cuenta` (43), Deno `cuenta.test.ts` (7), Vitest `cuenta.test.js` y `tests/seguridad/fase7.test.mjs` (10) contra Supabase Auth local con Mailpit, incluida la compra con puntos pagada en el simulador de MP y dos compras en paralelo con los mismos puntos.)*
 
 ### Fase 8 · Endurecimiento y pruebas E2E automáticas
-- [ ] Suite **Playwright** (§7.2) en CI contra el entorno local o un preview.
+- [ ] Suite **Playwright** (§7.2) en CI contra el entorno local o un preview. *(17 nov: instalado, perfiles de 3 navegadores y 4 anchos, vigilancia de errores y prueba de humo en el trabajo `e2e` del CI. Faltan los flujos y pantallas de `docs/PLAN-PRUEBAS.md` §7 y §10.)*
 - [ ] Escaneo OWASP ZAP *baseline* contra el preview.
 - [ ] Revisión completa de RLS y permisos: cada tabla, cada función, con la llave publicable y con una sesión de clienta. Revisar los avisos de seguridad del panel de Supabase.
 - [ ] Lighthouse en móvil contra la meta de §3.4.

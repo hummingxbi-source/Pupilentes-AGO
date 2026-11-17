@@ -48,3 +48,9 @@ supabase/.branches
 
 # Fotos importadas en modo local (desarrollo); en producción van a R2
 public/img/catalogo/
+
+# Playwright (las capturas de referencia *-snapshots/ SÍ van al repo)
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
