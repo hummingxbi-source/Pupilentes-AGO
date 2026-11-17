@@ -226,6 +226,10 @@ Lo que una sola persona probando nunca encuentra. Se hacen con dos navegadores o
 | 3 | `tests/e2e/abandono.spec`, `movil.spec` | U7, U17, D20 |
 | 3 | `tests/seguridad/fase8-archivos.test.mjs` | S2, S3, D14 (al crear los buckets de R2) |
 | 3 | `supabase/tests/11_reglas.test.sql` | I1–I7 como consultas reutilizables |
+| 1 | `tests/e2e/pantallas/tienda.spec` | P1–P9 (§10) |
+| 1 | `tests/e2e/pantallas/panel.spec` | P10–P17 (§10) |
+| 2 | `tests/e2e/pantallas/visual.spec` | Capturas de referencia (§10.3) |
+| 2 | `tests/e2e/pantallas/accesibilidad.spec` | axe + teclado (§10.4) |
 
 ## 8. Orden y criterios de salida
 
@@ -236,6 +240,7 @@ Lo que una sola persona probando nunca encuentra. Se hacen con dos navegadores o
 | 2 | §4.5 y §5 | I1–I10 se cumplen tras X8 |
 | 3 | §6 (★ a mano + huecos S1–S20) | 0 hallazgos altos abiertos |
 | 4 | Automatizar §7, prioridades 1 y 2 | CI en verde con las pruebas nuevas |
+| 4b | Pantallas (§10) en los 3 navegadores y 4 anchos | 0 errores de consola; capturas aprobadas; axe sin fallas graves |
 | 5 | Servicios reales (ARQUITECTURA Fase 8: T1, T2, T3, T7, T8) | 10 compras sin descuadre; una semana sin descuadres en ML y TikTok |
 
 **Bloqueos conocidos:** buckets de R2 (S2, S3, D14, U11 con archivo); cuentas de Mercado Pago, Envia, ML y TikTok (etapa 5); proyecto de staging (S1).
@@ -251,3 +256,66 @@ Regla rota:             (I1–I10, si aplica)
 Severidad:              crítica (dinero, stock o datos de otra persona) · alta · media · baja
 Evidencia:              captura, folio, hora
 ```
+
+## 10. Pruebas de pantalla
+
+Todo lo anterior prueba que el servidor responde bien. Esta sección prueba que **cada pantalla muestra lo correcto en cada estado**: cargando, vacía, con error, con datos y al terminar una acción. Se planearon leyendo `src/pages`, `src/panel` y sus textos actuales.
+
+### 10.1 Cómo se corren
+
+- **Herramienta:** Playwright (aún no está en `package.json`), contra `npm run dev` + Supabase local + simuladores, igual que el trabajo `integracion` del CI.
+- **Navegadores:** Chromium, WebKit (equivale a Safari de iPhone) y Firefox.
+- **Anchos:** 360 px (Android chico), 390 px (iPhone), 768 px (tableta) y 1280 px (laptop). El CSS cambia de diseño entre 600 y 960 px (`max-width` de 600, 700, 760, 860, 900 y 960 px en `src`), así que 768 cae justo en la zona de cambio.
+- **En cada pantalla, siempre:** 0 errores en la consola; 0 violaciones de CSP; ninguna petición con respuesta 4xx/5xx que no sea parte del caso; nada se sale de la pantalla a lo ancho (sin scroll horizontal); el nombre de la dueña no aparece (I9).
+- **Estados de error:** se fuerzan apagando un simulador o la función, o interceptando la petición con `page.route` para que responda 500 o tarde 10 s.
+- **Selectores:** por rol y texto visible (`getByRole`, `getByText`). Donde no alcance, agregar `data-testid` (cambio menor al frontend, se acuerda con el equipo).
+
+### 10.2 Pantalla por pantalla
+
+#### Tienda
+
+| ID | Pantalla (ruta) | Estados a probar | Qué se verifica |
+|---|---|---|---|
+| P1 | Landing (`/`) | Normal; con animaciones reducidas (`prefers-reduced-motion`) | Secciones "Tres pasos", "En ojos", "¿No sabes cuál?", "Dudas"; los botones llevan a `/tienda`, `/tono` y `/probador`; carga sin el chatbot (`VITE_CHATBOT=false`) |
+| P2 | Tienda (`/tienda`) | "Cargando catálogo…"; con datos; filtro sin resultados ("No hay tonos con ese filtro."); error con botón "Reintentar"; con caché del navegador y sin red | Filtros por Familia y Efecto; graduación y "Sin graduación"; "Agotado" y "Agotado en $…"; sección Accesorios; disponible máximo 10 |
+| P3 | Test de tono (`/tono`) | Recorrido completo; cambiar intensidad; volver atrás | Recomienda tonos que existen en el catálogo y llevan a su ficha |
+| P4 | Probador (`/probador`) | "Cargando lookbook…"; cámara permitida; cámara negada; "Sin lentes"; cerrar | El modelo (3.7 MB) se descarga solo aquí; con cámara negada hay mensaje y salida |
+| P5 | Nosotros (`/nosotros`) | Normal | Textos sin el nombre de la dueña; enlaces de contacto correctos |
+| P6 | Bolsa (panel lateral) | Vacía; 1 renglón; varios; al tope de 5 por renglón y 10 por pedido; producto que se agotó mientras estaba en la bolsa | Totales iguales a los del servidor; botón para quitar; mensaje al llegar al tope |
+| P7 | Caja (`/checkout`), paso 1 "¿A quién le…" | Vacío; teléfono o correo inválidos; con sesión de cuenta (datos ya llenos) | No avanza con datos inválidos; el mensaje de error está junto al campo |
+| P7b | Caja, paso 2 "¿Cómo quieres…" (entrega) | "Cargando opciones de entrega…"; Metro (2 estaciones + "Otra estación"); DiDi por alcaldía; paquetería con CP válido; CP sin cobertura ("No hay paqueterías disponibles para ese código postal."); Envia caído; cotización vencida (30 min); direcciones anteriores de la cuenta | Costos iguales a `tarifas_entrega`; 5 días sin domingo y 3 horarios; al elegir una dirección anterior se recotiza |
+| P7c | Caja, paso 3 "¿Cómo lo quieres…" (pago) | Mercado Pago; transferencia; "Usar mis puntos" sin cuenta (no aparece), con 0 puntos, con puntos; total que cambió (409); 4.º pedido sin pagar (429); Turnstile que no carga; doble clic en pagar | El descuento por puntos nunca toca el envío; al cambiar el total se muestra el nuevo antes de pagar; el botón se bloquea mientras procesa |
+| P8 | Seguimiento (`/pedido/:clave`) | "Cargando tu pedido…"; token válido; token inventado (404); buscar por folio (`AGO-1001`) + 4 dígitos; 6.º intento (bloqueado); cada estado del pedido (los 11 de §2) | Pantalla de transferencia con CLABE y botón "Copiar CLABE"; subir comprobante (cuando exista R2) o enlace a WhatsApp; nunca muestra domicilio completo |
+| P9 | Cuenta (`/cuenta`) | Sin sesión (correo); código "••••••" correcto, equivocado y vencido; "Cargando tu cuenta…"; cuenta nueva sin pedidos ("Sin lentes activos."); cuenta con pedidos ligados; perfil: guardar bien y "No se pudo guardar." | Secciones "Tus pedidos", "Movimientos de puntos", "Tu último par", "Renovación", "Direcciones de tus envíos", "Cómo sumar"; "Repetir" con producto agotado ("Sin existencias") |
+
+#### Panel
+
+| ID | Pantalla (ruta) | Estados a probar | Qué se verifica |
+|---|---|---|---|
+| P10 | Acceso (`/panel`) | "Hola de nuevo" (contraseña + Turnstile); contraseña mala; "Protege tu cuenta" (enrolar MFA con QR); "Tu código" (MFA bueno y malo); "Esta cuenta no entra al panel" (cuenta de clienta) | No se ve ningún dato del panel antes del MFA; tras 30 min sin uso regresa aquí |
+| P11 | Hoy (`/panel`) | BD vacía ("Sin ventas este mes todavía.", "Sin pagos por validar."); con pedidos; con alertas ("Requiere tu atención"); con stock bajo ("Se están acabando") | Cifras de "Este mes" y "¿De dónde vienen?" iguales a la BD; botón "Abrir inventario" |
+| P12 | Pedidos (`/panel/pedidos`) | "Cargando…"; "No hay pedidos aquí."; error con "Reintentar"; filtros; pedido de cada canal (web, ML, TikTok) | Ficha del pedido: botones que cambian según estado y rol (aprobar, rechazar, cancelar, reembolsar, devolver, generar y descargar guía, WhatsApp prellenado); confirmación antes de reembolsar; el pedido se actualiza sin recargar |
+| P13 | Inventario (`/panel/inventario`) | Normal; "Agotado"; ajuste con motivo; ajuste rechazado; importar Excel con errores, bien y "No se pudo leer el archivo; usa .xlsx o .csv."; exportar | Vista previa antes de aplicar; el historial muestra el movimiento nuevo |
+| P14 | Catálogo (`/panel/catalogo`) | Alta; editar precio ("No se pudo guardar el precio"); desactivar; Accesorios; subir foto (cuando exista R2) | El cambio aparece en la tienda tras recargar |
+| P15 | Clientas (`/panel/clientas`) | Vacía; con clientas; clienta "Sin nombre" | Historial y puntos coinciden con la BD |
+| P16 | Canales (`/panel/canales`) | "Sin conectar."; conectar (sale y regresa del OAuth del simulador); "Tus productos en…"; vincular por "SKU de la tienda"; "Vinculadas (n)"; logística Full; encender sincronización con "Confirmar"; "No se pudo completar."; desconectar | Encender pide confirmación; colchón visible |
+| P17 | Panel visto por la ayudante | Las 6 vistas | Los botones de dueña no aparecen (ajustar stock, precios, aprobar, reembolsar, devolver, sincronización, conectar) |
+
+### 10.3 Comparación visual (capturas de referencia)
+
+- Playwright guarda una captura de referencia de P1, P2, P7–P9 y P11–P13 en 390 px y 1280 px, con datos fijos de la semilla y la hora congelada.
+- En cada PR compara contra la referencia; una diferencia mayor al 0.2 % de los píxeles falla y muestra las dos imágenes. Las animaciones (GSAP, Lenis) se apagan con `prefers-reduced-motion` para que las capturas no varíen.
+- Cuando el cambio de diseño es a propósito, se actualiza la referencia en el mismo PR (`--update-snapshots`) y alguien del equipo la aprueba.
+
+### 10.4 Accesibilidad y uso con teclado
+
+- `@axe-core/playwright` en todas las pantallas de §10.2: 0 violaciones "serious" o "critical".
+- Se puede comprar de punta a punta solo con teclado (Tab, Enter, Espacio, Esc), con el foco visible en todo momento.
+- Cada campo de la caja y del acceso tiene etiqueta; los errores se anuncian (`aria-live`) y no dependen solo del color.
+- El modal del pedido en el panel atrapa el foco y se cierra con Esc.
+- Texto ampliado al 200 %: nada se corta en la caja ni en el panel.
+
+### 10.5 Rendimiento visible
+
+- Lighthouse en móvil sobre P1 y P2: LCP menor a 2.5 s (meta de ARQUITECTURA §3.4).
+- La primera carga de `/tienda` no descarga `exceljs`, `jspdf` ni el modelo de MediaPipe (ARQUITECTURA §3.4); se verifica con la lista de peticiones de Playwright.
