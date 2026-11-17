@@ -4,7 +4,7 @@
 > **Cubre el 100% del proyecto:** frontend, backend, base de datos, integraciones, seguridad, pruebas y lanzamiento.
 > Repo: `hummingxbi-source/Pupilentes-AGO` · Última actualización: 14 nov 2026 (v3.0) · **Estado: Fases 0 y 1 cerradas. Fase 2 en `main`; falta su prueba a mano en local. Fases 3 a 7 — código terminado** (3–6 en `main` con PR #13–#16; 7 en la rama `fase/7-cuenta`, 14 nov) con pruebas de integración y seguridad en el CI contra simuladores y contra Supabase Auth local (código por correo con Mailpit y Turnstile de prueba). De la Fase 8 ya está el código de **alertas completas**. **Todo el código del backend está escrito: lo que queda es la Fase 8 (pruebas E2E, ZAP, Lighthouse, revisión de RLS, restauración del respaldo y las pruebas con los servicios reales), los datos de la clienta y la Fase 9 (nube y lanzamiento).** Pendiente del equipo: repo a privado
 >
-> Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño).
+> Documentos relacionados: [`README.md`](../README.md) (cómo empezar) · [`docs/FRONTEND.md`](FRONTEND.md) (la demo como punto de partida del diseño) · [`docs/PLAN-PRUEBAS.md`](PLAN-PRUEBAS.md) (plan de pruebas de la Fase 8).
 
 ---
 
