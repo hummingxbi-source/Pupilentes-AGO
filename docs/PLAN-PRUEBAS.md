@@ -6,8 +6,8 @@
 
 ## 1. Cómo se usa
 
-1. Levantar el entorno local con los 4 simuladores (README → "Backend local" y "Compras y pagos en local").
-2. Correr la batería automática. Si algo sale en rojo, no se empieza lo manual.
+1. **Fase 0 en un comando:** `bash scripts/entorno-pruebas.sh` (con Docker Desktop abierto). Reinicia la BD local, levanta Supabase, las Edge Functions con los 4 simuladores y la tienda (misma configuración que el CI), corre la batería automática completa, vuelve a reiniciar la BD y deja las cuentas `duena@prueba.mx` / `ayudante@prueba.mx` y las variantes de prueba de §3. El resultado queda en `.pruebas/resultado.txt`; las contraseñas temporales, en `.pruebas/cuentas.txt`. Para apagar: `--detener`.
+2. Si algo de la batería sale en rojo, no se empieza lo manual.
 3. Recorrer §4 (personas reales), luego §5 (varias personas a la vez), luego §6 (seguridad).
 4. Después de **cada** caso, revisar las reglas de §2. Un caso solo pasa si su resultado es el esperado **y** las reglas siguen cumpliéndose.
 5. Registrar cada fallo con el formato de §9. Cada error arreglado suma una prueba automática.

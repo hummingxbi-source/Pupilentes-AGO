@@ -127,6 +127,14 @@ npm run test:concurrencia                      # última pieza comprada en paral
 npm audit --omit=dev --audit-level=high
 ```
 
+### Entorno de pruebas completo en un comando (Fase 8)
+```bash
+bash scripts/entorno-pruebas.sh                # BD desde cero + funciones + 4 simuladores + tienda + batería completa + cuentas de prueba
+bash scripts/entorno-pruebas.sh --sin-bateria  # igual, sin correr las pruebas
+bash scripts/entorno-pruebas.sh --detener      # apaga lo que levantó
+```
+Usa `supabase/functions/.env.pruebas` (lo genera; tu `.env` no se toca). Borra la BD **local**. Detalle en `docs/PLAN-PRUEBAS.md` §1.
+
 ### Pruebas de pantalla (Playwright · Fase 8)
 Plan completo en [`docs/PLAN-PRUEBAS.md`](docs/PLAN-PRUEBAS.md) (§10). Necesitan Supabase local arriba (`supabase start`) y `.env.local` lleno.
 ```bash

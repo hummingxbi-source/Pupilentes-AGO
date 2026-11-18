@@ -54,3 +54,6 @@ public/img/catalogo/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Entorno de pruebas local (scripts/entorno-pruebas.sh): secretos de prueba, registros y contraseñas temporales
+/.pruebas/
