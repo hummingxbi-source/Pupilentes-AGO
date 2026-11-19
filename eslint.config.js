@@ -4,7 +4,8 @@ import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default [
-  { ignores: ['dist/', 'node_modules/', 'supabase/', 'public/mediapipe/', 'public/models/'] },
+  // playwright-report/, test-results/ y .pruebas/ son generados por las pruebas (código minificado de terceros).
+  { ignores: ['dist/', 'node_modules/', 'supabase/', 'public/mediapipe/', 'public/models/', 'playwright-report/', 'test-results/', '.pruebas/'] },
   js.configs.recommended,
   {
     files: ['**/*.{js,jsx,mjs}'],
