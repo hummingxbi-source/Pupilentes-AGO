@@ -319,3 +319,13 @@ Todo lo anterior prueba que el servidor responde bien. Esta sección prueba que 
 
 - Lighthouse en móvil sobre P1 y P2: LCP menor a 2.5 s (meta de ARQUITECTURA §3.4).
 - La primera carga de `/tienda` no descarga `exceljs`, `jspdf` ni el modelo de MediaPipe (ARQUITECTURA §3.4); se verifica con la lista de peticiones de Playwright.
+
+## 11. Registro de hallazgos
+
+Más reciente primero. Formato de §9; cada arreglo suma una prueba automática.
+
+| ID | Fecha | Dónde | Qué pasó | Severidad | Estado |
+|---|---|---|---|---|---|
+| H3 | 19 nov 2026 | `crear_pedido` (BD) · prueba `tests/seguridad/fase7` "puntos EN PARALELO" | Dos compras simultáneas de la misma clienta con puntos: Postgres aborta una con `deadlock detected` y la clienta recibe 500 en vez de 409. Los puntos no se gastan dos veces. Aparece solo a veces (depende del instante en que se cruzan). | Media | Arreglado en `fase/8-fix-puntos-paralelo`: migración `20261120000000_puntos_bloqueo.sql` (bloqueo de la clienta antes de crear el pedido) + prueba que repite el caso 15 veces |
+| H2 | 19 nov 2026 | `deno.json` (`nodeModulesDir: "auto"`, desde el 11 nov) | Cada `deno test` reemplazaba hasta 19 paquetes de `node_modules` (React, Vite, lucide-react…) por versiones más nuevas: dos copias de React y la tienda en blanco en local. El CI no lo veía (cada trabajo instala desde cero). | Alta (local) | Arreglado en `fase/8-entorno-pruebas` (`d734ec1`): `nodeModulesDir: "none"` |
+| H1 | 17 nov 2026 | Supabase local de cada integrante | Supabase solo lee `config.toml` al arrancar: quien lo levantó antes de la Fase 7 sigue sin registro abierto ni captcha (`signup_disabled`). | Baja (local) | `scripts/entorno-pruebas.sh` reinicia Supabase siempre |
