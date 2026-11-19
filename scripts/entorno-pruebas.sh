@@ -58,13 +58,16 @@ command -v deno >/dev/null && bien "Deno" || aviso "Sin Deno: se omiten las prue
 
 # --- 2. Supabase local -------------------------------------------------------------------------
 azul "2/7 Supabase local"
-supabase status >/dev/null 2>&1 || supabase start || morir "supabase start falló."
+# Supabase solo lee supabase/config.toml al arrancar: si se levantó antes de un cambio de config
+# (p. ej. Auth de la Fase 7: registro abierto y captcha), sigue con la vieja. Por eso se reinicia siempre.
+supabase stop >"$LOGS/supabase-stop.log" 2>&1
+supabase start >"$LOGS/supabase-start.log" 2>&1 || morir "supabase start falló (ver $LOGS/supabase-start.log)."
 eval "$(supabase status -o env 2>/dev/null | sed 's/^/export /')"
 export SUPABASE_URL="${API_URL:-http://127.0.0.1:55321}"
 export SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY:-${ANON_KEY:-}}"
 export SUPABASE_SECRET_KEY="${SECRET_KEY:-${SERVICE_ROLE_KEY:-}}"
 [ -n "$SUPABASE_SECRET_KEY" ] || morir "No pude leer las llaves de 'supabase status -o env'."
-bien "Arriba en $SUPABASE_URL"
+bien "Arriba en $SUPABASE_URL (reiniciado con el config.toml actual)"
 grep -q "$SUPABASE_PUBLISHABLE_KEY" .env.local || aviso ".env.local no tiene la llave publicable de este Supabase local; la tienda podría no conectar."
 supabase db reset >"$LOGS/db-reset.log" 2>&1 || morir "supabase db reset falló (ver $LOGS/db-reset.log)."
 bien "BD reiniciada desde las migraciones y la semilla"
@@ -80,7 +83,7 @@ if [ ! -f "$DIR/secretos.env" ]; then
   } >"$DIR/secretos.env"
 fi
 set -a; . "$DIR/secretos.env"; set +a
-export CRON_SECRET=cron-local-solo-desarrollo   # igual a `secreto_cron` de Vault en seed.sql
+CRON_SECRET=cron-local-solo-desarrollo   # igual a `secreto_cron` de Vault en seed.sql (sin export: ver paso 5)
 export MP_NOTIFICATION_URL=$FUNC/webhook-mercadopago
 cat >"$ENVF" <<EOF
 # Generado por scripts/entorno-pruebas.sh: solo valores de PRUEBA y simuladores locales. No se sube al repo.
@@ -149,10 +152,14 @@ if [ "$BATERIA" = 1 ]; then
   azul "5/7 Batería automática"
   correr lint npm run lint
   correr unitarias npm test
-  if command -v deno >/dev/null; then correr funciones deno test --allow-env tests/unit/funciones
+  if command -v deno >/dev/null; then correr funciones env -u MP_WEBHOOK_SECRET -u ENVIA_WEBHOOK_SECRET -u TT_APP_SECRET -u ML_CLIENT_SECRET -u MP_NOTIFICATION_URL -u CRON_SECRET deno test --allow-env tests/unit/funciones   # sin las variables de prueba, igual que el CI
   else NOMBRES+=("funciones"); ESTADOS+=("omitida (sin Deno)"); fi
   correr build npm run build
   correr audit npm run audit:ci
+  if grep -q EALLOWSCRIPTS "$LOGS/bateria-audit.log" 2>/dev/null; then
+    ESTADOS[$((${#ESTADOS[@]} - 1))]="omitida (allow-scripts en tu config global de npm; revisa: npm config list)"
+    aviso "audit: tu npm global tiene 'allow-scripts'; no es del proyecto (el CI sí lo corre)."
+  fi
   correr pgtap supabase test db
   correr concurrencia npm run test:concurrencia
   correr seguridad node --test --test-concurrency=1 "tests/seguridad/*.test.mjs"
