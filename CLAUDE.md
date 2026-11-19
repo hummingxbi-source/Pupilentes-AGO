@@ -4,6 +4,9 @@ Tienda en línea de pupilentes de color (estéticos y graduados) + panel de la d
 
 **Antes de trabajar, lee `docs/ARQUITECTURA.md`** (ramas, alcance, arquitectura, modelo de datos, fases, estado, decisiones pendientes ⚠️) y, si tocas UI, `docs/FRONTEND.md`.
 
+## Pruebas de la Fase 8 (Claude Code)
+Se ejecutan con el comando **`/pruebas`** (`.claude/skills/pruebas/`) siguiendo **`docs/PRUEBAS-RUNBOOK.md`**: una fase por vez, reporte en `.pruebas/reportes/` y alto para la revisión del orquestador (`.pruebas/retro/`). Entorno local en un comando: `bash scripts/entorno-pruebas.sh`. Reglas de negocio verificables: `node scripts/revisar-reglas.mjs`.
+
 ## Ramas (importante)
 - `main` = **proyecto real.** Se actualiza solo con PR.
 - `fase/N-nombre` sale de `main` y regresa con PR a `main`.
