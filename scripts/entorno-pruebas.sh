@@ -134,7 +134,11 @@ while [ "$i" -lt 120 ] && [ "$seguidas" -lt 3 ]; do   # el runtime puede reinici
 done
 [ "$seguidas" -ge 3 ] && bien "Edge Functions en $FUNC" || morir "Las funciones no arrancaron (ver $LOGS/funciones.log). ¿Otro 'supabase functions serve' abierto? Ciérralo."
 
-if escucha 5173; then aviso "Vite ya corre en :5173; lo reutilizo"
+if escucha 5173; then
+  # Solo se reutiliza si es la tienda (Vite responde cualquier ruta); otro servidor daría 404 en /tienda.
+  [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5173/tienda)" = 200 ] \
+    || morir "Algo que NO es la tienda ocupa el puerto 5173 (/tienda da 404). Ciérralo (lsof -iTCP:5173 -sTCP:LISTEN) y vuelve a correr."
+  aviso "Vite ya corre en :5173; lo reutilizo"
 else fondo vite npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
   esperar http://127.0.0.1:5173/ 60 && bien "Tienda en http://localhost:5173" || morir "Vite no arrancó (ver $LOGS/vite.log)."
 fi
@@ -163,7 +167,7 @@ if [ "$BATERIA" = 1 ]; then
   correr pgtap supabase test db
   correr concurrencia npm run test:concurrencia
   correr seguridad node --test --test-concurrency=1 "tests/seguridad/*.test.mjs"
-  correr humo npm run test:e2e:humo
+  correr humo npm run test:e2e:humo -- --reporter=list
   # Las pruebas dejan pedidos y cuentas en la BD: se reinicia para la prueba a mano.
   supabase db reset >"$LOGS/db-reset-2.log" 2>&1 && bien "BD reiniciada otra vez para probar a mano" || aviso "No se pudo reiniciar la BD tras la batería."
 else

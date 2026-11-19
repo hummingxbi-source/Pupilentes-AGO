@@ -20,7 +20,9 @@ export default defineConfig({
     // Comparación visual (§10.3): falla si cambia más del 0.2 % de los píxeles.
     toHaveScreenshot: { maxDiffPixelRatio: 0.002, animations: 'disabled' },
   },
-  reporter: CI ? [['list'], ['html', { open: 'never' }]] : [['list'], ['html', { open: 'on-failure' }]],
+  // open: 'never' siempre: con 'on-failure' Playwright deja un servidor esperando Ctrl+C y bloquea scripts.
+  // Para ver el reporte: npm run e2e:reporte
+  reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: URL,
     locale: 'es-MX',
