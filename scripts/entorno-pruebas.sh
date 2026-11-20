@@ -194,6 +194,8 @@ if [ "$BATERIA" = 1 ]; then
   correr humo npm run test:e2e:humo -- --reporter=list
   # Flujos de personas reales (Fase 8 · F1): BD limpia + variantes de prueba, como los recorre una persona.
   supabase db reset >"$LOGS/db-reset-flujos.log" 2>&1 || aviso "No se pudo reiniciar la BD antes de los flujos."
+  # Tras el reset, la API REST responde 503 unos segundos mientras recarga el esquema: se espera a que conteste.
+  i=0; until [ "$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $SUPABASE_PUBLISHABLE_KEY" "$SUPABASE_URL/rest/v1/catalogo_publico?select=clave&limit=1")" = 200 ] || [ "$i" -ge 60 ]; do sleep 1; i=$((i + 1)); done
   preparar_datos >"$LOGS/datos-flujos.log" 2>&1
   correr flujos npm run test:e2e:flujos -- --reporter=list
   correr flujos-movil npx playwright test tests/e2e/flujos/u17-movil.spec.mjs --project=android --project=iphone --reporter=list

@@ -72,8 +72,13 @@ test('X2 · última pieza: compra web y venta de ML en el mismo instante (5 rond
       await esperar(async () => !['pendiente_pago'].includes(await estado(web.datos.folio)));
       final = await estado(web.datos.folio);
     }
-    const s = await stock(v.sku);
+    let s = await stock(v.sku);
     resultados.push({ web: web.status === 200 ? final : `rechazado ${web.status} ${web.datos?.error}`, stock: s.stock, apartado: s.stock_reservado, I1_intermedio: intermedio.length ? intermedio[0] : 'ok' });
+    if (final === 'pagado_sin_stock') {   // H14: su apartado sigue activo; se deja que el cron lo libere al vencer
+      await db.query(`update public.reservas_stock set expira_en = now() - interval '1 second' where pedido_id = (select id from public.pedidos where folio = $1) and estado = 'activa'`, [web.datos.folio]);
+      await cron();
+      s = await stock(v.sku);
+    }
     assert.ok(s.stock >= 0, 'el stock no baja de 0');
     assert.deepEqual(await reglasStock(v.sku), [], `I1/I3 al final de la ronda ${i + 1}`);
     if (web.status === 200) assert.ok(['pagado_sin_stock', 'pagado'].includes(final), `el pago web cae en pagado_sin_stock (o pagado si ML no la descontó): ${final}`);
