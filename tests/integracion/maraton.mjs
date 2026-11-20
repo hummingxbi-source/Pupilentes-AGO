@@ -114,6 +114,9 @@ const ESCENARIOS = {
 const ORDEN = Object.keys(ESCENARIOS);
 
 test('preparación: foto del stock, cuentas, canales y existencias', async () => {
+  // Remedio de H14: apartados colgados de pedidos pagado_sin_stock de pruebas anteriores → el cron los libera al vencer
+  await db.query(`update public.reservas_stock set expira_en = now() - interval '1 second' where estado = 'activa' and pedido_id in (select id from public.pedidos where estado = 'pagado_sin_stock')`);
+  assert.equal(await cron(), 200);
   const f = reglas('--foto');
   assert.equal(f.status, 0, f.stderr);
   duena = await cuentaPanel('duena');

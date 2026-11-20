@@ -16,9 +16,11 @@ const ml = pedir(ML), tt = pedir(TT);
 const cron = () => fetch(`${API}/functions/v1/cron-conciliar`, { method: 'POST', headers: { 'x-cron-secret': CRON } }).then(async (r) => ({ status: r.status, datos: await r.json().catch(() => null) }));
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 async function esperar(cond, ms = 10_000) { const fin = Date.now() + ms; while (Date.now() < fin) { if (await cond()) return true; await espera(250); } return false; }
+/** Deja `n` pares DISPONIBLES (stock = apartado + n), con un ajuste registrado. Nunca por debajo de lo apartado (I1). */
 async function fijarStock(sku, n) {
   const s = await stock(sku);
-  if (s.stock !== n) await db.query(`select public.mover_stock((select id from public.variantes where sku = $1), $2, 'ajuste', $3, 'panel')`, [sku, n - s.stock, `ci:${randomUUID()}`]);
+  const meta = s.stock_reservado + n;
+  if (s.stock !== meta) await db.query(`select public.mover_stock((select id from public.variantes where sku = $1), $2, 'ajuste', $3, 'panel')`, [sku, meta - s.stock, `ci:${randomUUID()}`]);
 }
 const estado = async (folio) => (await uno('select estado from public.pedidos where folio = $1', [folio])).estado;
 const idDe = async (folio) => (await uno('select id from public.pedidos where folio = $1', [folio])).id;
@@ -36,6 +38,17 @@ function secretoMP() {
   return existsSync(f) ? /MP_WEBHOOK_SECRET=(\S+)/.exec(readFileSync(f, 'utf8'))?.[1] : null;
 }
 
+/** Variante sin apartados (para "última pieza" y números exactos); no repite entre pruebas. */
+const libresUsadas = new Set();
+async function skuLibre() {
+  const { rows } = await db.query(`select v.sku, v.precio from public.variantes v join public.productos p on p.id = v.producto_id
+     where v.activo and p.activo and v.graduacion is null and v.stock_reservado = 0 and v.stock >= 1 order by v.sku`);
+  const f = rows.find((x) => !libresUsadas.has(x.sku));
+  assert.ok(f, 'no quedan variantes sin apartados');
+  libresUsadas.add(f.sku);
+  return { sku: f.sku, precio: Number(f.precio) };
+}
+
 let duena, ayudante;
 const pedidosSinStock = [];
 const ML_SIMPLE = 'MLM100100', TT_PROD = '1730000000000000001', TT_SKU_B = '1730000000000000102';
@@ -47,6 +60,11 @@ async function conectar(f) {
 }
 
 test('preparación: cuentas del panel y canales conectados (sin sincronizar)', async () => {
+  // Remedio de H14: pruebas anteriores (fase3: pago tardío sin stock) dejan apartados activos de pedidos
+  // pagado_sin_stock; se dejan vencer y el cron real los libera, para partir de I1–I3 en verde.
+  await db.query(`update public.reservas_stock set expira_en = now() - interval '1 second' where estado = 'activa' and pedido_id in (select id from public.pedidos where estado = 'pagado_sin_stock')`);
+  await cron();
+  assert.deepEqual(await reglasStock(), [], 'I1–I3 al empezar');
   duena = await cuentaPanel('duena');
   ayudante = await cuentaPanel('ayudante');
   await conectar('panel-ml');
@@ -57,7 +75,7 @@ test('preparación: cuentas del panel y canales conectados (sin sincronizar)', a
 
 // ------------------------------------------------------------------------------------------- X2
 test('X2 · última pieza: compra web y venta de ML en el mismo instante (5 rondas)', async (t) => {
-  const v = await skuCon(1);
+  const v = await skuLibre();
   assert.equal((await fn('panel-ml', { accion: 'vincular', item: ML_SIMPLE, sku: v.sku, logistica: 'propia' }, { token: duena.aal2 })).status, 200);
   const resultados = [];
   for (let i = 0; i < 5; i++) {
@@ -88,7 +106,7 @@ test('X2 · última pieza: compra web y venta de ML en el mismo instante (5 rond
 });
 
 test('X2 · última pieza apartada por la web y vendida en ML en ese mismo segundo: no baja de 0 y el pago web cae en pagado_sin_stock', async (t) => {
-  const v = await skuCon(1);
+  const v = await skuLibre();
   assert.equal((await fn('panel-ml', { accion: 'vincular', item: ML_SIMPLE, sku: v.sku, logistica: 'propia' }, { token: duena.aal2 })).status, 200);
   await cron();                                                     // absorbe ventas viejas del simulador (H12)
   const rondas = [];
@@ -139,7 +157,7 @@ test('X2 · H14 · un pedido que cae en pagado_sin_stock libera su apartado en e
 
 // ------------------------------------------------------------------------------------------- X3
 test('X3 · la dueña ajusta el stock mientras una clienta paga esa variante (10 rondas): nunca por debajo de lo apartado', async (t) => {
-  const v = await skuCon(1);
+  const v = await skuLibre();
   const vistos = { ajuste: {}, pedido: {} };
   for (let i = 0; i < 10; i++) {
     await fijarStock(v.sku, 2);
@@ -162,7 +180,7 @@ test('X3 · la dueña ajusta el stock mientras una clienta paga esa variante (10
 
 // ------------------------------------------------------------------------------------------- X4
 test('X4 · la dueña importa un Excel mientras entran ventas: el lote detecta el cambio y no pisa las ventas', async (t) => {
-  const v = await skuCon(1);
+  const v = await skuLibre();
   const vistos = {};
   for (let i = 0; i < 5; i++) {
     await fijarStock(v.sku, 5);
@@ -189,7 +207,7 @@ test('X4 · la dueña importa un Excel mientras entran ventas: el lote detecta e
 test('X5 · dueña y ayudante generan la guía del mismo pedido a la vez (5 rondas): una sola guía', async () => {
   const v = await skuCon(1);
   for (let i = 0; i < 5; i++) {
-    await fijarStock(v.sku, (await stock(v.sku)).stock_reservado + 2);
+    await fijarStock(v.sku, 2);
     const c = await fn('envios-cotizar', { items: [{ sku: v.sku, cantidad: 1 }], destino: { cp: '06600', ciudad: 'Cuauhtémoc', estado: 'Ciudad de México', colonia: 'Juárez' }, turnstile: 'XXXX.DUMMY.TOKEN.XXXX' });
     assert.equal(c.status, 200, JSON.stringify(c.datos));
     const o = c.datos.opciones[0];
@@ -217,7 +235,7 @@ test('X6 · la dueña aprueba una transferencia en el momento en que vence su ap
   const vistos = {};
   const v = await skuCon(1);
   for (let i = 0; i < 8; i++) {
-    await fijarStock(v.sku, (await stock(v.sku)).stock_reservado + 2);
+    await fijarStock(v.sku, 2);
     const p = await fn('pedidos-crear', cuerpoPedido(v, { metodo: 'transferencia' }));
     assert.equal(p.status, 200, JSON.stringify(p.datos));
     const id = await idDe(p.datos.folio);
@@ -251,8 +269,8 @@ test('X7 · el cron corre mientras llegan avisos de MP, ML y TikTok (3 rondas): 
   const estados = [];
   const vw = await skuCon(1);
   for (let i = 0; i < 3; i++) {
-    await fijarStock(vml.sku, 6); await fijarStock(vtt.sku, 6);
-    await fijarStock(vw.sku, (await stock(vw.sku)).stock_reservado + 2);
+    await fijarStock(vml.sku, 6); await fijarStock(vtt.sku, 6); await fijarStock(vw.sku, 2);
+    const ml0 = (await stock(vml.sku)).stock, tt0 = (await stock(vtt.sku)).stock;
     const p = await fn('pedidos-crear', cuerpoPedido(vw));
     assert.equal(p.status, 200, JSON.stringify(p.datos));
     const pendiente = await pagarEnSim(p.datos.url_pago, 'pending');
@@ -268,8 +286,8 @@ test('X7 · el cron corre mientras llegan avisos de MP, ML y TikTok (3 rondas): 
     await esperar(async () => (await estado(p.datos.folio)) === 'pagado');
     await cron();
     assert.equal(await estado(p.datos.folio), 'pagado');
-    assert.equal((await stock(vml.sku)).stock, 5, 'ML descontó una vez');
-    assert.equal((await stock(vtt.sku)).stock, 5, 'TikTok descontó una vez');
+    assert.equal((await stock(vml.sku)).stock, ml0 - 1, 'ML descontó una vez');
+    assert.equal((await stock(vtt.sku)).stock, tt0 - 1, 'TikTok descontó una vez');
     const vend = await uno(`select coalesce(-sum(delta), 0)::int as n from public.movimientos_stock where pedido_id = (select id from public.pedidos where folio = $1) and motivo = 'venta'`, [p.datos.folio]);
     assert.equal(vend.n, 1, 'la venta web se descontó una vez');
   }
@@ -281,7 +299,7 @@ test('X9 · el mismo aviso de pago llega 2 veces A LA VEZ (5 rondas): un solo mo
   const secreto = secretoMP();
   const v = await skuCon(1);
   for (let i = 0; i < 5; i++) {
-    await fijarStock(v.sku, (await stock(v.sku)).stock_reservado + 2);
+    await fijarStock(v.sku, 2);
     const p = await fn('pedidos-crear', cuerpoPedido(v));
     assert.equal(p.status, 200, JSON.stringify(p.datos));
     const idPago = await pagarEnSim(p.datos.url_pago, 'pending');

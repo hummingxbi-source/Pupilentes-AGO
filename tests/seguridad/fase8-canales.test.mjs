@@ -19,9 +19,11 @@ async function esperar(cond, ms = 8000) {
   while (Date.now() < fin) { if (await cond()) return true; await new Promise((r) => setTimeout(r, 250)); }
   return false;
 }
+/** Deja `n` pares DISPONIBLES (stock = apartado + n), con un ajuste registrado. Nunca por debajo de lo apartado (I1). */
 async function fijarStock(sku, n) {
   const s = await stock(sku);
-  if (s.stock !== n) await db.query(`select public.mover_stock((select id from public.variantes where sku = $1), $2, 'ajuste', $3, 'panel')`, [sku, n - s.stock, `ci:${randomUUID()}`]);
+  const meta = s.stock_reservado + n;
+  if (s.stock !== meta) await db.query(`select public.mover_stock((select id from public.variantes where sku = $1), $2, 'ajuste', $3, 'panel')`, [sku, meta - s.stock, `ci:${randomUUID()}`]);
 }
 const disponible = async (sku) => { const s = await stock(sku); return s.stock - s.stock_reservado; };
 const movimientos = (ref) => db.query(`select motivo, delta from public.movimientos_stock where ref_externa like $1 order by creado_en`, [ref]).then((r) => r.rows);
@@ -148,6 +150,7 @@ test('K6 · venta de un artículo sin vincular: no mueve stock, alerta y queda v
 // ------------------------------------------------------------------------------------------- K7
 test('K7 · venta del canal cuando nuestro stock ya es 0: no baja de 0 y alerta de sobreventa', async () => {
   await fijarStock(SKU_K, 0);
+  assert.equal((await stock(SKU_K)).stock, 0, 'la variante de la prueba no tiene apartados: su stock queda en 0');
   const v = await ml('/simular/venta', { item: ML_SIMPLE, cantidad: 1 });
   assert.equal(v.aviso, 200);
   assert.ok(await esperar(async () => (await alertasAbiertas('sobreventa')).some((a) => a.detalle.ref?.includes(String(v.orden)))), 'alerta de sobreventa');
