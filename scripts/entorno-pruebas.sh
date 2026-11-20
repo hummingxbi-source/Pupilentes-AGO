@@ -188,6 +188,9 @@ if [ "$BATERIA" = 1 ]; then
   correr pgtap supabase test db
   correr concurrencia npm run test:concurrencia
   correr seguridad node --test --test-concurrency=1 "tests/seguridad/*.test.mjs"
+  # Fase 8 · F2: varias personas a la vez y maratón X8 (usan los canales que deja conectados fase8-canales)
+  correr simultaneo npm run test:simultaneo
+  correr maraton npm run test:maraton
   correr humo npm run test:e2e:humo -- --reporter=list
   # Flujos de personas reales (Fase 8 · F1): BD limpia + variantes de prueba, como los recorre una persona.
   supabase db reset >"$LOGS/db-reset-flujos.log" 2>&1 || aviso "No se pudo reiniciar la BD antes de los flujos."

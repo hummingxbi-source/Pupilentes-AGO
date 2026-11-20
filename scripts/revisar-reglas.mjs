@@ -7,7 +7,7 @@ import pg from 'pg';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 
 const DB = process.env.DB_URL || 'postgresql://postgres:postgres@127.0.0.1:55322/postgres';
-const FOTO = '.pruebas/foto.json';
+const FOTO = process.env.REGLAS_FOTO || '.pruebas/foto.json';   // REGLAS_FOTO: otra foto (p. ej. la del maratón X8)
 const c = new pg.Client({ connectionString: DB });
 await c.connect();
 const q = async (sql, args = []) => (await c.query(sql, args)).rows;

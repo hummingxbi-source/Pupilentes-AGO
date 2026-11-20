@@ -54,8 +54,8 @@ Valores vigentes que las pruebas usan como referencia (salen de las migraciones;
 | DiDi por alcaldía | $75 a $185 | ídem (provisional) |
 | Vigencia de la cotización de paquetería | 30 min | `20261115000000_envios.sql` |
 | Puntos: 1 por cada $10 · valor $0.50 · tope 50 % · bono perfil 50 | — | `20261118000000_cuenta.sql` |
-| Código de acceso: 6 dígitos, 10 min, 60 s entre envíos, 2 correos por hora en local | — | `supabase/config.toml` |
-| Rastreo por folio: bloqueo al 6.º intento | — | `tests/seguridad/fase3.test.mjs` (ARQUITECTURA §3.3 F dice "5 por hora": confirmar cuál es el correcto) |
+| Código de acceso: 6 dígitos, 10 min, 1 cada 60 s por correo (el límite por hora solo aplica con SMTP propio) | — | `supabase/config.toml` (comprobado en F1, 19 nov) |
+| Rastreo por folio: 5 intentos por folio por hora (el 6.º se bloquea) | — | `pedidos-rastrear` (`folio:<folio>:rastrear`, 3600 s, 5) · `tests/seguridad/fase3.test.mjs` |
 
 ## 4. Recorridos de personas reales
 
@@ -326,6 +326,17 @@ Más reciente primero. Formato de §9; cada arreglo suma una prueba automática.
 
 | ID | Fecha | Dónde | Qué pasó | Severidad | Estado |
 |---|---|---|---|---|---|
+| H14 | 20 nov 2026 | `privado.confirmar_pago` (BD) · X2 | Pago web tardío de una pieza que ML/TikTok ya vendió: el pedido cae bien en `pagado_sin_stock`, pero su apartado sigue activo hasta que vence (stock 0, apartado 1: I1 rota hasta 30 min; si la dueña repone, esa pieza queda bloqueada). | Media | Arreglo propuesto en `fix/H14-liberar-sin-stock` (migración nueva + pgTAP) · prueba `todo` en `tests/integracion/simultaneo.mjs` |
+| H13 | 20 nov 2026 | Canales · `ml_colchon` / `tt_colchon` · D15 | Cambiar el colchón no encola la publicación: ML y TikTok siguen con el número viejo hasta el siguiente cambio de stock o la reconciliación de 24 h. | Baja | Abierto · prueba `todo` en `tests/seguridad/fase8-canales.test.mjs` |
+| H12 | 20 nov 2026 | `cron-conciliar` (`conciliarOrdenes`, últimas 48 h) | Al conectar un canal o vincular una publicación, el cron aplica al stock las ventas de las 48 h anteriores de esa publicación, aunque el conteo de la dueña ya las reflejara (posible doble descuento el día de la conexión). Útil para recuperar ventas "sin vincular"; peligroso al conectar. | Media | **Decisión pendiente (equipo/clienta):** ¿desde cuándo cuentan las ventas de un canal recién conectado o vinculado? |
+| H11 | 20 nov 2026 | `ml_guardar_tokens` / `tt_guardar_tokens` · D15 | Después de "Desconectar", volver a conectar la misma cuenta truena (500 `secrets_name_idx`): `*_desconectar` deja el secreto de Vault con su nombre y `*_guardar_tokens` intenta crearlo de nuevo. La dueña no puede reconectar sin el equipo. | Alta | Arreglo propuesto en `fix/H11-reconectar-canal` (migración nueva + pgTAP) · prueba `todo` en `fase8-canales` |
+| H10 | 19 nov 2026 | Panel → Clientas · D17 | No hay historial de pedidos por clienta (solo totales). | Baja | **Decisión de alcance pendiente (equipo/clienta):** función nueva, no error |
+| H9 | 19 nov 2026 | `panel-pedidos` reembolsar · D10 | Con Mercado Pago lento, el panel decía "no aceptó el reembolso" aunque MP sí lo procesaba, y el intento no quedaba en la auditoría. | Media | Arreglo en `fix/H9-reembolso-sin-respuesta` (504 con aviso, `reembolso_sin_respuesta` en auditoría, regla I8b en `revisar-reglas`) |
+| H8 | 19 nov 2026 | Panel · `config_tienda` · D19 | No hay pantalla para CLABE, WhatsApp, apartados, envío ni puntos (la BD sí lo permite a la dueña con MFA, valida y audita). | Media | **Decisión de alcance pendiente (equipo/clienta):** pantalla nueva, no error |
+| H7 | 19 nov 2026 | `/cuenta` · Perfil · C5 | El aviso "Guardado." / bono desaparecía sin verse y la tarjeta de puntos no se actualizaba sin recargar. | Baja | Arreglo en `fix/H7-perfil-confirmacion` |
+| H6 | 19 nov 2026 | `Turnstile.jsx` · U18 | Si Turnstile no carga (bloqueador de anuncios), el botón quedaba apagado sin ningún aviso. | Media | Arreglo en `fix/H6-turnstile-aviso` (aviso + "Reintentar") |
+| H5 | 19 nov 2026 | Bolsa · U3 | La bolsa guardaba el precio de cuando se agregó; no se ponía al día con la BD. | Baja | Arreglo en `fix/H5-bolsa-precios` |
+| H4 | 19 nov 2026 | `mxn()` · U4, U11 | Precios con centavos se mostraban redondeados ("Pagar $922" y se cobraba $921.50; "Monto exacto" de transferencia redondeado). | Media | Arreglo en `fix/H4-centavos` |
 | H3 | 19 nov 2026 | `crear_pedido` (BD) · prueba `tests/seguridad/fase7` "puntos EN PARALELO" | Dos compras simultáneas de la misma clienta con puntos: Postgres aborta una con `deadlock detected` y la clienta recibe 500 en vez de 409. Los puntos no se gastan dos veces. Aparece solo a veces (depende del instante en que se cruzan). | Media | Arreglado en `fase/8-fix-puntos-paralelo`: migración `20261120000000_puntos_bloqueo.sql` (bloqueo de la clienta antes de crear el pedido) + prueba que repite el caso 15 veces |
 | H2 | 19 nov 2026 | `deno.json` (`nodeModulesDir: "auto"`, desde el 11 nov) | Cada `deno test` reemplazaba hasta 19 paquetes de `node_modules` (React, Vite, lucide-react…) por versiones más nuevas: dos copias de React y la tienda en blanco en local. El CI no lo veía (cada trabajo instala desde cero). | Alta (local) | Arreglado en `fase/8-entorno-pruebas` (`d734ec1`): `nodeModulesDir: "none"` |
 | H1 | 17 nov 2026 | Supabase local de cada integrante | Supabase solo lee `config.toml` al arrancar: quien lo levantó antes de la Fase 7 sigue sin registro abierto ni captcha (`signup_disabled`). | Baja (local) | `scripts/entorno-pruebas.sh` reinicia Supabase siempre |
