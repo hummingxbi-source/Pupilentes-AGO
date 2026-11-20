@@ -13,12 +13,14 @@ import type { SupabaseClient } from '../../../supabase/functions/_shared/deps.ts
 type Rpc = Record<string, (a: Record<string, unknown>) => unknown>;
 function bd({ rpc = {} as Rpc, filas = {} as Record<string, unknown>, rol = 'duena' as string | null, limite = true } = {}) {
   const llamadas: { rpc: string; args: Record<string, unknown> }[] = [];
+  const insertados: { tabla: string; fila: Record<string, unknown> }[] = [];
   const admin = {
     auth: { getClaims: async (t: string) => t === 'jwt-valido' ? { data: { claims: { sub: 'u-1', role: 'authenticated', aal: 'aal2' } }, error: null } : { data: null, error: { message: 'x' } } },
     from: (tabla: string) => {
       const q: Record<string, unknown> = {};
       for (const m of ['select', 'eq', 'not', 'order', 'limit', 'in']) q[m] = () => q;
       q.maybeSingle = async () => ({ data: tabla === 'perfiles_panel' ? (rol ? { rol } : null) : (filas[tabla] ?? null), error: null });
+      q.insert = async (fila: Record<string, unknown>) => { insertados.push({ tabla, fila }); return { error: null }; };
       return q;
     },
     rpc: async (nombre: string, args: Record<string, unknown>) => {
@@ -28,7 +30,7 @@ function bd({ rpc = {} as Rpc, filas = {} as Record<string, unknown>, rol = 'due
       return r && typeof r === 'object' && 'error' in (r as object) ? r : { data: r ?? null, error: null };
     },
   } as unknown as SupabaseClient;
-  return { admin, llamadas, hizo: (n: string) => llamadas.filter((l) => l.rpc === n) };
+  return { admin, llamadas, insertados, hizo: (n: string) => llamadas.filter((l) => l.rpc === n) };
 }
 const post = (cuerpo: unknown, enc: Record<string, string> = {}, url = 'http://x') => new Request(url, {
   method: 'POST', body: JSON.stringify(cuerpo), headers: { 'content-type': 'application/json', ...enc },
@@ -267,4 +269,31 @@ Deno.test('webhook-mercadopago: la clave del aviso es la misma en reintentos y d
   assert.notEqual(claveEvento({ ...pendiente, id: 123 }, '123', null), claveEvento({ ...aprobado, id: 123 }, '123', null));
   // Sin id en el cuerpo: cada entrega es un evento nuevo (nunca se descarta un aviso)
   assert.notEqual(claveEvento({}, '123', 'req-a'), claveEvento({}, '123', 'req-b'));
+});
+
+Deno.test('panel-pedidos: si Mercado Pago no responde al reembolsar, pide revisar antes de repetir y deja el intento en la auditoría (H9)', async () => {
+  const filas = { pedidos: { id: PID, folio: 'AGO-9', estado: 'pagado', metodo_pago: 'mercadopago', no_entregar: false, total: 799 }, pagos: { id_externo: '123' } };
+  // 1) Tiempo agotado (o falla de red): 504 con el mensaje acordado, sin registrar el reembolso, con auditoría.
+  const lento = clienteMP(CFG, (async () => { throw new DOMException('signal timed out', 'TimeoutError'); }) as typeof fetch);
+  const b = bd({ filas, rpc: { panel_registrar_reembolso: () => 'reembolsado' } });
+  const r = await panelPedidos(post({ accion: 'reembolsar', pedido: PID, nota: 'devolución' }, auth), { admin: b.admin, mp: lento, r2: null });
+  assert.equal(r.status, 504);
+  const cuerpo = await r.json();
+  assert.equal(cuerpo.error, 'mp_sin_respuesta');
+  assert.equal(cuerpo.mensaje, 'No tuvimos respuesta de Mercado Pago. Revisa en unos minutos si el pedido ya aparece como reembolsado antes de volver a intentarlo.');
+  assert.equal(b.hizo('panel_registrar_reembolso').length, 0);
+  assert.deepEqual(b.insertados.map((x) => [x.tabla, x.fila.accion, x.fila.registro, (x.fila.despues as Record<string, unknown>).estado, x.fila.usuario]),
+    [['auditoria_panel', 'reembolso_sin_respuesta', 'AGO-9', 'sin_respuesta', 'u-1']]);
+  // 2) Error 5xx de MP: igual que sin respuesta
+  const caido = clienteMP(CFG, (async () => Response.json({ message: 'internal' }, { status: 503 })) as typeof fetch);
+  const b5 = bd({ filas });
+  assert.equal((await panelPedidos(post({ accion: 'reembolsar', pedido: PID }, auth), { admin: b5.admin, mp: caido, r2: null })).status, 504);
+  assert.equal(b5.insertados.length, 1);
+  // 3) Rechazo claro (4xx): sigue siendo 502 y no se audita como "sin respuesta"
+  const rechazo = clienteMP(CFG, (async () => Response.json({ message: 'Payment not refundable' }, { status: 400 })) as typeof fetch);
+  const b4 = bd({ filas });
+  const r4 = await panelPedidos(post({ accion: 'reembolsar', pedido: PID }, auth), { admin: b4.admin, mp: rechazo, r2: null });
+  assert.equal(r4.status, 502);
+  assert.equal((await r4.json()).error, 'mp_no_disponible');
+  assert.equal(b4.insertados.length, 0);
 });

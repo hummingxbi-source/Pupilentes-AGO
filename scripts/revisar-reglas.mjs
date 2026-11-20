@@ -54,6 +54,12 @@ const reglas = [
      where g.proveedor = 'transferencia' and g.estado in ('aprobado', 'rechazado')
        and not exists (select 1 from public.auditoria_panel a
                         where a.accion in ('aprobar_transferencia', 'rechazar_transferencia') and a.registro = p.folio)`],
+  ['I8b', 'todo pedido web reembolsado tiene su auditoría (reembolsar o reembolso_sin_respuesta) o vino de un aviso de MP', `
+    select p.folio from public.pedidos p
+     where p.canal = 'web' and p.estado = 'reembolsado'
+       and not exists (select 1 from public.auditoria_panel a
+                        where a.registro = p.folio and a.accion in ('reembolsar', 'reembolso_sin_respuesta'))
+       and not exists (select 1 from privado.alertas al where al.pedido_id = p.id and al.tipo = 'reembolso')`],
 ];
 
 let rotas = 0;
