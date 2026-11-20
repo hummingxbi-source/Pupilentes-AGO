@@ -6,6 +6,8 @@ import Lenis from 'lenis';
 import { Nav, Footer, Bag, Toast, Curtain, TLink } from './ui';
 import Landing from './pages/Landing';
 import { useCatalogo } from './lib/tienda';
+import { useStore } from './lib/store';
+import { ajustarBolsa, avisoBolsa } from './lib/bolsa';
 
 gsap.registerPlugin(ScrollTrigger);
 const Tienda = lazy(() => import('./pages/Tienda'));
@@ -42,6 +44,16 @@ function Smooth() {
 
 // Carga el catálogo de la BD al abrir y lo refresca al volver a la pestaña (usa la caché mientras).
 function CargarCatalogo() {
+  // Cada vez que llega el catálogo de la BD, la bolsa se pone al día (precio y existencias; hallazgo H5).
+  useEffect(() => useCatalogo.subscribe((s, antes) => {
+    if (s.productos === antes.productos || s.estado !== 'listo') return;
+    const { bolsa, notificar } = useStore.getState();
+    const r = ajustarBolsa(bolsa, s.productos);
+    if (!r.cambio) return;
+    useStore.setState({ bolsa: r.bolsa });
+    const aviso = avisoBolsa(r);
+    if (aviso) notificar(aviso);
+  }), []);
   useEffect(() => {
     const cargar = () => useCatalogo.getState().cargar();
     cargar();

@@ -67,9 +67,8 @@ test('U3 · bolsa: agregar, cambiar cantidad (tope 5), quitar y recargar: se con
   expect((await bolsaGuardada(page)).map((b) => [b.sku, b.cant])).toEqual([[lente.sku, 4]]);
 });
 
-// Se espera que FALLE mientras H5 siga abierto: la bolsa guarda el precio del momento en que se agregó.
-test('U3 · H5 · si la dueña cambia el precio, la bolsa muestra el precio nuevo al volver', async ({ page }) => {
-  test.fail(true, 'H5 abierto: la bolsa no refresca precios desde la BD (src/lib/store.js)');
+// H5: al volver, la bolsa toma el precio de hoy y lo avisa.
+test('U3 · H5 · si la dueña cambia el precio, la bolsa muestra el precio nuevo al volver y lo avisa', async ({ page }) => {
   const lente = await lenteCon();
   await agregarDesdeFicha(page, lente.tono);
   const nuevo = lente.precio + 37;
@@ -77,9 +76,10 @@ test('U3 · H5 · si la dueña cambia el precio, la bolsa muestra el precio nuev
   try {
     await page.evaluate(() => localStorage.removeItem('ago-catalogo-v1'));   // "al día siguiente": caché vencida
     await page.reload();
-    await expect(page.getByText('Cargando catálogo…')).toBeHidden();
+    await expect(page.locator('.toast')).toHaveText(/Actualizamos el precio de 1 pieza\./, { timeout: 10_000 });
     await page.getByRole('button', { name: /Bolsa, 1 piezas/ }).click();
     await expect(page.getByRole('dialog', { name: /Tu bolsa/ }).locator('.bag-item')).toContainText(`$${nuevo.toLocaleString('es-MX')}`, { timeout: 3000 });
+    expect((await bolsaGuardada(page))[0].precio).toBe(nuevo);
   } finally {
     await sql('update public.variantes set precio = $2 where sku = $1', [lente.sku, lente.precio]);
   }
