@@ -85,9 +85,7 @@ test('C5 · completar perfil con una compra pagada: +50 una sola vez (la segunda
   await page.getByLabel('Cumpleaños').fill('1995-04-10');
   await page.getByRole('button', { name: 'Guardar' }).click();
   await expect.poll(() => saldoDe(correo)).toBe(s0 + 50);
-  // La tarjeta de puntos no se actualiza sola tras el bono (parte de H7): se ve al recargar.
-  await page.reload();
-  await expect(page.locator('.club .pts')).toHaveText(String(s0 + 50));
+  await expect(page.locator('.club .pts')).toHaveText(String(s0 + 50));   // sin recargar (H7)
   await expect(page.getByLabel('Cumpleaños')).toBeDisabled();                     // el cumpleaños ya no se cambia
   await page.getByLabel('Nombre').fill('Bere Otra Vez');
   await page.getByRole('button', { name: 'Guardar' }).click();
@@ -97,14 +95,25 @@ test('C5 · completar perfil con una compra pagada: +50 una sola vez (la segunda
   expect(bonos.length).toBe(1);
 });
 
-// Se espera que FALLE mientras H7 siga abierto: el formulario se vuelve a montar (key = nombre + cumpleaños)
-// y el aviso de confirmación desaparece antes de verse.
-test('C5 · H7 · al guardar el perfil la clienta ve la confirmación ("Guardado." o el bono)', async ({ page }) => {
-  test.fail(true, 'H7 abierto: el aviso de Perfil se pierde al volver a montarse (src/pages/Cuenta.jsx)');
+// H7: al guardar, la clienta ve la confirmación y la tarjeta de puntos se actualiza sin recargar.
+test('C5 · H7 · al guardar el perfil se ve "Guardado."; con compra, el aviso del bono y los puntos nuevos sin recargar', async ({ page }) => {
+  test.setTimeout(90_000);
   await entrarCuenta(page, nuevoCorreo('perfil-aviso'));
   await page.getByLabel('Nombre').fill('Cami Aviso');
   await page.getByRole('button', { name: 'Guardar' }).click();
-  await expect(page.getByText(/^(Guardado\.|¡Listo! Sumaste \d+ puntos\.)$/)).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText(/^Guardado\.$/)).toBeVisible({ timeout: 5000 });
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  const correo = nuevoCorreo('perfil-bono');
+  await compraPagadaDeInvitada(correo);
+  await entrarCuenta(page, correo);
+  const s0 = await saldoDe(correo);
+  await expect(page.locator('.club .pts')).toHaveText(String(s0));
+  await page.getByLabel('Nombre').fill('Cami Bono');
+  await page.getByLabel('Cumpleaños').fill('1996-02-20');
+  await page.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByText('¡Listo! Sumaste 50 puntos.')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('.club .pts')).toHaveText(String(s0 + 50), { timeout: 5000 });
 });
 
 // ------------------------------------------------------------------------------------------- C7

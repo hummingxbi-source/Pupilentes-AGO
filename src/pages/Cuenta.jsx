@@ -115,9 +115,21 @@ export default function Cuenta() {
       const rx = gsap.quickTo(card, 'rotationX', { duration: 0.6 }), ry = gsap.quickTo(card, 'rotationY', { duration: 0.6 });
       const mv = (e) => { const r = card.getBoundingClientRect(); ry(((e.clientX - r.left) / r.width - 0.5) * 14); rx(-((e.clientY - r.top) / r.height - 0.5) * 14); };
       card.addEventListener('pointermove', mv); card.addEventListener('pointerleave', () => { rx(0); ry(0); });
-      const o = { v: 0 }; gsap.to(o, { v: pts, duration: 1.8, ease: 'power2.out', delay: 0.4, onUpdate: () => { const el = card.querySelector('.pts'); if (el) el.textContent = Math.round(o.v); } });
     }
   }, { scope: root, dependencies: [estado, !!datos] });
+
+  // Contador de puntos: sube desde lo que ya se ve hasta el saldo actual, también cuando cambia sin recargar
+  // (p. ej. al sumar el bono del perfil; hallazgo H7).
+  const ptsVisto = useRef(0);
+  const hayDatos = !!datos;
+  useEffect(() => {
+    const el = root.current?.querySelector('.club .pts');
+    if (!el || !hayDatos) return undefined;
+    const o = { v: ptsVisto.current };
+    const tw = gsap.to(o, { v: pts, duration: 1.8, ease: 'power2.out', delay: ptsVisto.current ? 0 : 0.4,
+      onUpdate: () => { el.textContent = Math.round(o.v); }, onComplete: () => { ptsVisto.current = pts; } });
+    return () => { tw.kill(); ptsVisto.current = Math.round(o.v); };
+  }, [pts, hayDatos]);
 
   const recomprar = (p) => {
     const { agregables, faltan } = paraRecomprar(p, productos);
@@ -154,7 +166,9 @@ export default function Cuenta() {
             <div className="ac-rules"><span><b>1 pt</b> por cada {mxn(Number(reglas.pesos_por_punto))}</span><span><b>{mxn(Number(reglas.valor))}</b> vale cada punto</span>
               {reglas.bono_perfil > 0 && <span><b>+{reglas.bono_perfil}</b> al completar tu perfil</span>}<span>Úsalos para pagar hasta el <b>{reglas.max_pct}%</b> de tus productos</span></div>
           </section>}
-          <Perfil key={perfil.nombre + perfil.cumpleanos} perfil={perfil} reglas={reglas} />
+          {/* key estable: si cambiara con el nombre o el cumpleaños, el formulario se volvería a montar al guardar
+              y el aviso de "Guardado." o del bono desaparecería sin verse (hallazgo H7). */}
+          <Perfil key={perfil.correo} perfil={perfil} reglas={reglas} />
           {datos.movimientos?.length > 0 && <section className="panel-card ac-in"><h3>Movimientos de puntos</h3>
             {datos.movimientos.slice(0, 12).map((m, i) => <div key={i} className="alert-row"><span>{MOTIVOS[m.motivo] || m.motivo}{m.folio ? <span className="mono mute"> · {m.folio}</span> : null}<small className="mute" style={{ display: 'block' }}>{fecha(m.fecha)}</small></span>
               <span className={'mono ' + (m.delta > 0 ? 'gold' : 'mute')}>{m.delta > 0 ? '+' : ''}{m.delta}</span></div>)}
