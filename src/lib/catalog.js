@@ -6,7 +6,13 @@
 export const A = (p) => (/^(data:|blob:|https?:)/.test(p) ? p : import.meta.env.BASE_URL + p.replace(/^\//, ''));
 export const WA = '525571113508';
 export const waLink = (txt) => `https://wa.me/${WA}?text=${encodeURIComponent(txt)}`;
-export const mxn = (n) => '$' + Math.round(n).toLocaleString('es-MX');
+// Pesos enteros sin decimales ("$799"); con centavos, los centavos exactos ("$921.50"): lo que se muestra
+// es lo que se cobra (hallazgo H4: Envia cotiza con centavos y antes se redondeaba a pesos).
+export const mxn = (n) => {
+  const v = Math.round(Number(n) * 100) / 100;
+  const centavos = !Number.isInteger(v);
+  return '$' + v.toLocaleString('es-MX', { minimumFractionDigits: centavos ? 2 : 0, maximumFractionDigits: 2 });
+};
 
 export const GRADS = ['0.00', '-0.50', '-0.75', '-1.00', '-1.25', '-1.50', '-1.75', '-2.00', '-2.25', '-2.50', '-2.75', '-3.00', '-3.25', '-3.50', '-3.75', '-4.00', '-4.50', '-5.00', '-5.50', '-6.00', '-6.50', '-7.00', '-7.50', '-8.00'];
 
