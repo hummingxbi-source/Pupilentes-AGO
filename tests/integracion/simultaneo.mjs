@@ -138,7 +138,7 @@ test('X2 · última pieza apartada por la web y vendida en ML en ese mismo segun
 // H14: al caer en pagado_sin_stock, confirmar_pago no libera el apartado que el pedido ya tenía (queda activo hasta
 // que vence: stock 0 y apartado 1, I1 rota hasta 30 min). `todo` mientras siga abierto.
 test('X2 · H14 · un pedido que cae en pagado_sin_stock libera su apartado en ese momento', { todo: 'H14 abierto: privado.confirmar_pago no llama a liberar_reserva al caer en pagado_sin_stock' }, async () => {
-  const v = await skuCon(1);
+  const v = await skuLibre();
   assert.equal((await fn('panel-ml', { accion: 'vincular', item: ML_SIMPLE, sku: v.sku, logistica: 'propia' }, { token: duena.aal2 })).status, 200);
   await cron();
   await fijarStock(v.sku, 1);
@@ -323,6 +323,9 @@ test('X9 · el mismo aviso de pago llega 2 veces A LA VEZ (5 rondas): un solo mo
 });
 
 test('al final: I1–I3 en todas las variantes', async () => {
+  // Remedio de H14 (solo pedidos pagado_sin_stock): sus apartados los libera el cron al vencer
+  await db.query(`update public.reservas_stock set expira_en = now() - interval '1 second' where estado = 'activa' and pedido_id in (select id from public.pedidos where estado = 'pagado_sin_stock')`);
+  await cron();
   assert.deepEqual(await reglasStock(), []);
   void SIM;
 });
