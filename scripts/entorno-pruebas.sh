@@ -143,6 +143,27 @@ else fondo vite npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
   esperar http://127.0.0.1:5173/ 60 && bien "Tienda en http://localhost:5173" || morir "Vite no arrancó (ver $LOGS/vite.log)."
 fi
 
+# Variantes de prueba (§3 del plan). Se usa antes de los flujos de la batería y al dejar el entorno listo.
+preparar_datos() {
+cat >"$DIR/datos.mjs" <<'JS'
+// Variantes de prueba (§3 del plan): stock 1 (última pieza), 0 (agotada) y 25 (tope de 10 en la tienda).
+// Se mueve el stock con mover_stock, como el panel, para que la bitácora siga cuadrando (regla I2).
+import pg from 'pg';
+const c = new pg.Client(process.env.DB_URL || 'postgresql://postgres:postgres@127.0.0.1:55322/postgres');
+await c.connect();
+const { rows } = await c.query(`select v.id, v.sku, v.stock from public.variantes v join public.productos p on p.id = v.producto_id
+  where v.activo and p.tipo = 'lente' and v.graduacion is null and v.stock_reservado = 0 order by v.sku limit 3`);
+const metas = [1, 0, 25], ahora = Date.now();
+for (const [i, v] of rows.entries()) {
+  const delta = metas[i] - v.stock;
+  if (delta) await c.query('select public.mover_stock($1, $2, $3, $4)', [v.id, delta, 'ajuste', `pruebas:fase0:${v.sku}:${ahora}`]);
+  console.log(`   ✓ ${v.sku}: stock ${metas[i]}`);
+}
+await c.end();
+JS
+  node "$DIR/datos.mjs" || aviso "No se pudieron preparar las variantes de prueba."
+}
+
 # --- 5. Batería automática (la misma del CI) ---------------------------------------------------
 NOMBRES=(); ESTADOS=()
 correr() { # correr <nombre> <comando...>
@@ -168,6 +189,11 @@ if [ "$BATERIA" = 1 ]; then
   correr concurrencia npm run test:concurrencia
   correr seguridad node --test --test-concurrency=1 "tests/seguridad/*.test.mjs"
   correr humo npm run test:e2e:humo -- --reporter=list
+  # Flujos de personas reales (Fase 8 · F1): BD limpia + variantes de prueba, como los recorre una persona.
+  supabase db reset >"$LOGS/db-reset-flujos.log" 2>&1 || aviso "No se pudo reiniciar la BD antes de los flujos."
+  preparar_datos >"$LOGS/datos-flujos.log" 2>&1
+  correr flujos npm run test:e2e:flujos -- --reporter=list
+  correr flujos-movil npx playwright test tests/e2e/flujos/u17-movil.spec.mjs --project=android --project=iphone --reporter=list
   # Las pruebas dejan pedidos y cuentas en la BD: se reinicia para la prueba a mano.
   supabase db reset >"$LOGS/db-reset-2.log" 2>&1 && bien "BD reiniciada otra vez para probar a mano" || aviso "No se pudo reiniciar la BD tras la batería."
 else
@@ -182,23 +208,8 @@ for par in "duena@prueba.mx duena" "ayudante@prueba.mx ayudante"; do
   if node scripts/cuentas-panel.mjs crear --correo "$1" --rol "$2" >>"$DIR/cuentas.txt" 2>&1; then bien "$1 ($2)"
   else aviso "$1: no se pudo crear (ver $DIR/cuentas.txt)"; fi
 done
-cat >"$DIR/datos.mjs" <<'JS'
-// Variantes de prueba (§3 del plan): stock 1 (última pieza), 0 (agotada) y 25 (tope de 10 en la tienda).
-// Se mueve el stock con mover_stock, como el panel, para que la bitácora siga cuadrando (regla I2).
-import pg from 'pg';
-const c = new pg.Client(process.env.DB_URL || 'postgresql://postgres:postgres@127.0.0.1:55322/postgres');
-await c.connect();
-const { rows } = await c.query(`select v.id, v.sku, v.stock from public.variantes v join public.productos p on p.id = v.producto_id
-  where v.activo and p.tipo = 'lente' and v.graduacion is null and v.stock_reservado = 0 order by v.sku limit 3`);
-const metas = [1, 0, 25], ahora = Date.now();
-for (const [i, v] of rows.entries()) {
-  const delta = metas[i] - v.stock;
-  if (delta) await c.query('select public.mover_stock($1, $2, $3, $4)', [v.id, delta, 'ajuste', `pruebas:fase0:${v.sku}:${ahora}`]);
-  console.log(`   ✓ ${v.sku}: stock ${metas[i]}`);
-}
-await c.end();
-JS
-node "$DIR/datos.mjs" || aviso "No se pudieron preparar las variantes de prueba."
+preparar_datos
+
 
 # --- 7. Resumen --------------------------------------------------------------------------------
 azul "7/7 Listo"

@@ -16,6 +16,7 @@
     "test:concurrencia": "node tests/integracion/stock-concurrencia.mjs",
     "test:e2e": "playwright test",
     "test:e2e:humo": "playwright test tests/e2e/pantallas/humo.spec.mjs --project=escritorio-chromium",
+    "test:e2e:flujos": "playwright test tests/e2e/flujos --project=escritorio-chromium",
     "test:e2e:ui": "playwright test --ui",
     "e2e:navegadores": "playwright install chromium firefox webkit",
     "e2e:reporte": "playwright show-report"
