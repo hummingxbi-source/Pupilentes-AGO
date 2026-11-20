@@ -115,7 +115,8 @@ test('U4 · invitada compra con tarjeta aprobada y envío por paquetería; U13 r
   const p = await uno('select subtotal, envio, descuento, total from public.pedidos where id = $1', [ped.id]);
   expect(Number(p.subtotal)).toBe(lente.precio);
   expect(Number(p.total)).toBe(Number(p.subtotal) + Number(p.envio) - Number(p.descuento));
-  expect(Math.round(Number(ped.total)), 'el botón mostró el total (redondeado)').toBe(totalVisto);
+  // El botón mostró ese total (a menos de un peso: hoy redondea; la exactitud la vigila la prueba de H4).
+  expect(Math.abs(Number(ped.total) - totalVisto), 'el botón mostró el total').toBeLessThan(1);
   await pagoCuadra(ped.id);
   const despues = await stockDe(lente.sku);
   expect(despues.stock, 'stock −1').toBe(antes.stock - 1);
