@@ -11,7 +11,7 @@ Se ejecutan con el comando **`/pruebas`** (`.claude/skills/pruebas/`) siguiendo 
 - `main` = **proyecto real.** Se actualiza solo con PR.
 - `fase/N-nombre` sale de `main` y regresa con PR a `main`.
 - `demo` (+ tag `demo-v1`) = **la demo congelada.** No se modifica; solo se consulta o se trae código de ahí (p. ej. el chatbot).
-- Mientras Vercel siga conectado al repo, **no subir código a `main`** (se publicaría en el link de la clienta). Ver ARQUITECTURA §0.2.
+- El repo **se desconectó de Vercel el 11 nov** (ARQUITECTURA §0.2): unir a `main` no publica nada. La demo de la clienta sigue en su link sin cambios.
 
 ## Alcance en una línea
 Funcionalidades de la demo hechas reales + Mercado Pago + sincronización de stock con Mercado Libre y TikTok Shop. El **chatbot está fuera de alcance** (fase futura): se oculta con `VITE_CHATBOT=false`.
