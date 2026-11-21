@@ -53,7 +53,7 @@ async function avisar(orden, firmaMala = false) {
   return r.status;
 }
 
-createServer(async (req, res) => {
+const servidor = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
   const q = Object.fromEntries(url.searchParams);
@@ -128,4 +128,9 @@ createServer(async (req, res) => {
     }
     mal(res, 404, 'not found', 404);
   } catch (e) { mal(res, 500, e.message, 500); }
-}).listen(PUERTO, HOST, () => console.log(`TikTok Shop simulado en http://${HOST}:${PUERTO}`));
+});
+// Las Edge Functions (Deno) reutilizan conexiones: con el keep-alive de 5 s de Node, a veces mandaban la petición
+// justo cuando el simulador cerraba el socket ("connection closed before message completed"). Se alarga.
+servidor.keepAliveTimeout = 65_000;
+servidor.headersTimeout = 66_000;
+servidor.listen(PUERTO, HOST, () => console.log(`TikTok Shop simulado en http://${HOST}:${PUERTO}`));

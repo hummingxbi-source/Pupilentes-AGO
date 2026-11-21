@@ -54,7 +54,7 @@ async function avisar(orden) {
   return r.status;
 }
 
-createServer(async (req, res) => {
+const servidor = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
   try {
@@ -147,4 +147,9 @@ createServer(async (req, res) => {
     }
     enviar(res, 404, { message: 'not found' });
   } catch (e) { enviar(res, 500, { message: e.message }); }
-}).listen(PUERTO, HOST, () => console.log(`Mercado Libre simulado en http://${HOST}:${PUERTO}`));
+});
+// Las Edge Functions (Deno) reutilizan conexiones: con el keep-alive de 5 s de Node, a veces mandaban la petición
+// justo cuando el simulador cerraba el socket ("connection closed before message completed"). Se alarga.
+servidor.keepAliveTimeout = 65_000;
+servidor.headersTimeout = 66_000;
+servidor.listen(PUERTO, HOST, () => console.log(`Mercado Libre simulado en http://${HOST}:${PUERTO}`));

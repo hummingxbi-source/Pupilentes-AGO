@@ -30,7 +30,7 @@ function precio(carrier, cuerpo, factor) {
   return Math.round(((BASE[carrier] ?? 140) + kg * 25) * factor * 100) / 100;
 }
 
-createServer(async (req, res) => {
+const servidor = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
     if (req.method === 'POST' && url.pathname.startsWith('/ship/')) {
@@ -81,4 +81,9 @@ createServer(async (req, res) => {
     }
     enviar(res, 404, { message: 'not found' });
   } catch (e) { error(res, 500, e.message); }
-}).listen(PUERTO, HOST, () => console.log(`Envia simulado en http://${HOST}:${PUERTO}`));
+});
+// Las Edge Functions (Deno) reutilizan conexiones: con el keep-alive de 5 s de Node, a veces mandaban la petición
+// justo cuando el simulador cerraba el socket ("connection closed before message completed"). Se alarga.
+servidor.keepAliveTimeout = 65_000;
+servidor.headersTimeout = 66_000;
+servidor.listen(PUERTO, HOST, () => console.log(`Envia simulado en http://${HOST}:${PUERTO}`));
