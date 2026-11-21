@@ -1,0 +1,642 @@
+{
+  "auditoria_panel": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "catalogo_publico": {
+    "anonimo": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "error 55000",
+      "insertar": "error 55000"
+    },
+    "clienta": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "error 55000",
+      "insertar": "error 55000"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "error 55000",
+      "insertar": "error 55000"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "error 55000",
+      "insertar": "error 55000"
+    },
+    "duena_sin_mfa": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "error 55000",
+      "insertar": "error 55000"
+    }
+  },
+  "clientas": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "algunas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "config_tienda": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "todas",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "entregas_publicas": {
+    "anonimo": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "envios": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "imagenes": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "ninguna",
+      "insertar": "bloqueado por RLS"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "ninguna",
+      "borrar": "ninguna",
+      "insertar": "bloqueado por RLS"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "todas",
+      "borrar": "todas",
+      "insertar": "permitido"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "ninguna",
+      "insertar": "bloqueado por RLS"
+    }
+  },
+  "marcas": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "todas",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "movimientos_stock": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "pagos": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "pedido_items": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "algunas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "pedidos": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "algunas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "perfiles_panel": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "productos": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "todas",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "publicaciones_canal": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "puntos_movimientos": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "algunas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "reservas_stock": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "tarifas_entrega": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "todas",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "tonos": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "todas",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  },
+  "variantes": {
+    "anonimo": {
+      "leer": "sin permiso",
+      "actualizar": "sin permiso",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "clienta": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "ayudante": {
+      "leer": "todas",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena": {
+      "leer": "todas",
+      "actualizar": "todas",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    },
+    "duena_sin_mfa": {
+      "leer": "ninguna",
+      "actualizar": "ninguna",
+      "borrar": "sin permiso",
+      "insertar": "sin permiso"
+    }
+  }
+}

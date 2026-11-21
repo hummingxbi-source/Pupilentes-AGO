@@ -1,0 +1,12 @@
+[
+  {
+    "f": "panel_alertas()",
+    "anon": false,
+    "auth": true
+  },
+  {
+    "f": "panel_atender_alerta(p_id uuid)",
+    "anon": false,
+    "auth": true
+  }
+]
