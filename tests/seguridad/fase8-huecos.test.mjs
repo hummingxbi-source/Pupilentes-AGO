@@ -273,13 +273,14 @@ test('S17 · rastreo por folio: el 6.º intento se bloquea y el bloqueo es por f
 // o cambia lo que alguna identidad puede hacer, esta prueba falla y hay que revisarla a propósito.
 const ESPERADO = JSON.parse(readFileSync(new URL('./_rls-esperado.json', import.meta.url), 'utf8'));
 test('S18 · RLS tabla por tabla con anónimo, clienta, ayudante y dueña (aal2): coincide con la matriz revisada', async (t) => {
-  const claims = (u, extra = {}) => ({ sub: u, role: 'authenticated', aal: 'aal2', ...extra });
+  // Los claims salen del token real de cada una (incluye session_id: el panel exige sesión viva, H16)
+  const claimsDe = (token) => JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
   const real = await matrizRls({
     anonimo: { rol: 'anon', claims: { role: 'anon' } },
-    clienta: { rol: 'authenticated', claims: { sub: clientaA.id, role: 'authenticated', aal: 'aal1', email: clientaA.correo } },
-    ayudante: { rol: 'authenticated', claims: claims(ayudante.id) },
-    duena: { rol: 'authenticated', claims: claims(duena.id) },
-    duena_sin_mfa: { rol: 'authenticated', claims: { sub: duena.id, role: 'authenticated', aal: 'aal1' } },
+    clienta: { rol: 'authenticated', claims: claimsDe(clientaA.token) },
+    ayudante: { rol: 'authenticated', claims: claimsDe(ayudante.aal2) },
+    duena: { rol: 'authenticated', claims: claimsDe(duena.aal2) },
+    duena_sin_mfa: { rol: 'authenticated', claims: claimsDe(duena.aal1) },
   });
   if (process.env.RLS_SALIDA) writeFileSync(process.env.RLS_SALIDA, JSON.stringify(real, null, 2) + '\n');
   void t;
