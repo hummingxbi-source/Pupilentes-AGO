@@ -112,8 +112,8 @@ test('D9 · reembolsar antes de enviar: reembolsado, las piezas vuelven solas, I
 // ------------------------------------------------------------------------------------------ D10
 test('D10 · el reembolso falla porque Mercado Pago no responde: error claro, el pedido no queda a medias y reintentar no duplica', async ({ page, vigia }, testInfo) => {
   test.setTimeout(120_000);
-  vigia.permitir(/HTTP (502|409): .*panel-pedidos/);
-  vigia.permitir(/consola: Failed to load resource: the server responded with a status of (502|409)/);
+  vigia.permitir(/HTTP (504|409): .*panel-pedidos/);
+  vigia.permitir(/consola: Failed to load resource: the server responded with a status of (504|409)/);
   const pidArchivo = '.pruebas/mercadopago.pid';
   test.skip(!existsSync(pidArchivo), 'sin .pruebas/mercadopago.pid (correr con scripts/entorno-pruebas.sh)');
   const pid = Number(readFileSync(pidArchivo, 'utf8'));
@@ -127,7 +127,10 @@ test('D10 · el reembolso falla porque Mercado Pago no responde: error claro, el
   try {
     await m.getByRole('button', { name: 'Reembolsar en Mercado Pago' }).click();
     await m.getByRole('alertdialog').getByRole('button', { name: /^Sí, reembolsar/ }).click();
-    await expect(m.getByRole('alert')).toContainText('Mercado Pago no aceptó el reembolso', { timeout: 30_000 });
+    // H9: sin respuesta de MP, el panel pide revisar antes de repetir (MP pudo haberlo procesado).
+    await expect(m.getByRole('alert')).toHaveText('No tuvimos respuesta de Mercado Pago. Revisa en unos minutos si el pedido ya aparece como reembolsado antes de volver a intentarlo.', { timeout: 30_000 });
+    const aud = await uno(`select despues from public.auditoria_panel where accion = 'reembolso_sin_respuesta' and registro = $1`, [p.folio]);
+    expect(aud?.despues?.estado, 'I8: el intento quedó en la auditoría').toBe('sin_respuesta');
     expect(await estadoDe(id), 'el pedido sigue pagado (no a medias)').toBe('pagado');
     expect((await stockDe(lente.sku)).stock).toBe(antes.stock - 1);
   } finally {
