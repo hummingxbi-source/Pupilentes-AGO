@@ -14,8 +14,11 @@
     "semilla": "node scripts/generar-semilla.mjs",
     "importar": "node scripts/importar-catalogo.mjs",
     "test:concurrencia": "node tests/integracion/stock-concurrencia.mjs",
+    "test:simultaneo": "node --test --test-concurrency=1 tests/integracion/simultaneo.mjs",
+    "test:maraton": "node --test --test-concurrency=1 tests/integracion/maraton.mjs",
     "test:e2e": "playwright test",
     "test:e2e:humo": "playwright test tests/e2e/pantallas/humo.spec.mjs --project=escritorio-chromium",
+    "test:e2e:flujos": "playwright test tests/e2e/flujos --project=escritorio-chromium",
     "test:e2e:ui": "playwright test --ui",
     "e2e:navegadores": "playwright install chromium firefox webkit",
     "e2e:reporte": "playwright show-report"

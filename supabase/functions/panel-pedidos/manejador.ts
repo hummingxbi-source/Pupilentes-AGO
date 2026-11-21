@@ -15,7 +15,7 @@ import { clienteServicio, exigirPanel, type RolPanel } from '../_shared/auth.ts'
 import { encabezadosCors, manejarCors } from '../_shared/cors.ts';
 import { ErrorHttp, errorDeBd, json, respuestaDeError } from '../_shared/http.ts';
 import { exigirLimite } from '../_shared/limite.ts';
-import { clienteMP, configMP } from '../_shared/mercadopago.ts';
+import { clienteMP, configMP, ErrorMP } from '../_shared/mercadopago.ts';
 import { clienteR2, configR2 } from '../_shared/r2.ts';
 import { leerJson, z } from '../_shared/validar.ts';
 import type { SupabaseClient } from '../_shared/deps.ts';
@@ -42,6 +42,12 @@ const ERRORES: Record<string, [number, string]> = {
   sin_venta_que_devolver: [409, 'Este pedido nunca descontó stock (se pagó sin stock), no hay nada que regresar.'],
   ya_devuelto: [409, 'Este pedido ya se regresó al inventario.'],
 };
+
+/** MP no contestó (tiempo agotado, falla de red o error 5xx): el reembolso pudo o no aplicarse. Un 4xx es un rechazo claro. */
+function sinRespuesta(e: unknown): boolean {
+  if (e instanceof ErrorMP) return e.estado >= 500;
+  return true;   // TimeoutError / AbortError / TypeError de red
+}
 
 export interface Dependencias {
   admin: SupabaseClient;
@@ -99,6 +105,16 @@ export async function manejar(req: Request, d: Dependencias = dependencias()): P
             idReembolso = String(r.id);
           } catch (e) {
             console.error('mp_reembolso', e instanceof Error ? e.message : String(e));
+            // Sin respuesta (tiempo agotado, red o 5xx): MP pudo haberlo procesado igual y el aviso llegará después
+            // (hallazgo H9). Se deja constancia del intento en la auditoría y se pide revisar antes de repetir.
+            if (sinRespuesta(e)) {
+              const { error: ea } = await d.admin.from('auditoria_panel').insert({
+                usuario: usuario.id, accion: 'reembolso_sin_respuesta', tabla: 'pedidos', registro: ped.folio,
+                despues: { estado: 'sin_respuesta', total: ped.total, nota: c.nota ?? null },
+              });
+              if (ea) console.error('auditoria_reembolso_sin_respuesta', ea.message);
+              throw new ErrorHttp(504, 'mp_sin_respuesta', 'No tuvimos respuesta de Mercado Pago. Revisa en unos minutos si el pedido ya aparece como reembolsado antes de volver a intentarlo.');
+            }
             throw new ErrorHttp(502, 'mp_no_disponible', 'Mercado Pago no aceptó el reembolso. Inténtalo en unos minutos o hazlo desde tu cuenta de MP.');
           }
         }

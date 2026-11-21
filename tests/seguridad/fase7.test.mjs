@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { API, PUB, SEC, TURNSTILE, fn, uno, skuCon, cuerpoPedido, pagarEnSim, cuentaPanel, nuevoTel } from './_comun.mjs';
+import { API, PUB, SEC, TURNSTILE, fn, uno, db, skuCon, cuerpoPedido, pagarEnSim, cuentaPanel, nuevoTel } from './_comun.mjs';
 
 const MAILPIT = (process.env.MAILPIT_URL || 'http://127.0.0.1:55324').replace(/\/$/, '');
 const admin = createClient(API, SEC, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -175,6 +175,34 @@ test('los mismos puntos usados dos veces EN PARALELO: solo una compra los gasta'
   const estados = [r1.status, r2.status].sort();
   assert.deepEqual(estados, [200, 409], `una pasa y otra no: ${JSON.stringify([r1.datos, r2.datos])}`);
   assert.equal(await saldo(a.token), 0);
+});
+
+// Hallazgo de la Fase 8 (19 nov 2026): la prueba de arriba falló una vez en local con
+// "crear_pedido: deadlock detected" → [200, 500]. Depende del instante exacto en que se cruzan
+// las dos transacciones, así que una sola vuelta casi nunca lo atrapa. Esta la repite.
+// Arreglo: supabase/migrations/20261120000000_puntos_bloqueo.sql.
+test('puntos en paralelo, repetido 15 veces: nunca un 500 (deadlock) y nunca se gastan dos veces', async () => {
+  const VECES = 15;
+  // Dos SKUs neutros con stock de sobra para todas las vueltas (cada vuelta aparta 1 pieza).
+  const { rows: skus } = await db.query(
+    `select v.id, v.sku, v.precio from public.variantes v join public.productos p on p.id = v.producto_id
+      where v.activo and p.activo and v.graduacion is null and v.precio >= 100 order by v.sku desc limit 2`);
+  assert.equal(skus.length, 2, 'faltan SKUs neutros para la prueba');
+  for (const v of skus) await db.query('select public.mover_stock($1, $2, $3, $4)', [v.id, VECES, 'ajuste', `ci:puntos-paralelo:${v.sku}:${randomUUID()}`]);
+  const [v1, v2] = skus.map((v) => ({ sku: v.sku, precio: Number(v.precio) }));
+  const cuerpo = (v) => { const c = cuerpoPedido(v, { metodo: 'transferencia', total: v.precio - 30 }); c.puntos = 60; return c; };
+
+  const distintas = [];
+  for (let i = 1; i <= VECES; i++) {
+    const a = await sesionClienta();
+    await resumen(a.token);
+    await uno(`insert into public.puntos_movimientos (clienta_id, delta, motivo) select id, 60, 'ajuste' from public.clientas where auth_user_id = $1`, [a.id]);
+    const [r1, r2] = await Promise.all([fn('pedidos-crear', cuerpo(v1), { token: a.token }), fn('pedidos-crear', cuerpo(v2), { token: a.token })]);
+    const estados = [r1.status, r2.status].sort();
+    if (estados[0] !== 200 || estados[1] !== 409) distintas.push({ vuelta: i, estados, respuestas: [r1.datos, r2.datos] });
+    assert.equal(await saldo(a.token), 0, `vuelta ${i}: los 60 puntos se apartaron una sola vez`);
+  }
+  assert.deepEqual(distintas, [], `vueltas que no dieron [200, 409]: ${JSON.stringify(distintas)}`);
 });
 
 test('perfil: datos inválidos 400; completo sin compras no da bono', async () => {

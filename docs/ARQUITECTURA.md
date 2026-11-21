@@ -695,6 +695,7 @@ Se dispara con **cada push a cualquier rama** y con cada PR a `main`. Un push nu
 - [ ] Cuando un comprador cancela en ML, ¿la pieza ya había salido? *Hoy se asume que no y el stock regresa.*
 - [ ] ¿Su cuenta maneja varios depósitos (multiorigen)?
 - [ ] Crear la app de desarrollador con **su** cuenta de ML, o autorizar la nuestra (T7).
+- [ ] **(H12, Fase 8)** Cuando conectemos ML y TikTok: tu conteo de inventario de ese día, ¿ya descuenta las ventas de las últimas 48 h que todavía no envías? Si sí, solo contaremos ventas posteriores a la conexión; si no, también las de las 48 h previas.
 
 **Cuenta y puntos (Fase 7, preguntas del 14 nov).** Hoy rigen las reglas de la demo; la dueña las cambia en `config_tienda`:
 - [ ] ¿Cuánto vale un punto y cada cuánto se gana? *Provisional: 1 punto por cada $10 pagados en productos; cada punto vale $0.50.*
