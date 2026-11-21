@@ -13,7 +13,12 @@ export default defineConfig({
     outDir: 'dist',
     rollupOptions: {
       output: {
-        manualChunks: { vendor: ['react', 'react-dom', 'react-router-dom', 'zustand'], gsap: ['gsap', '@gsap/react'] },
+        // EXPERIMENTO F2b (Vite 8 / Rolldown solo acepta manualChunks como función): mismos dos grupos.
+        manualChunks(id) {
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom|zustand|scheduler)\//.test(id)) return 'vendor';
+          if (/node_modules\/(gsap|@gsap\/react)\//.test(id)) return 'gsap';
+          return undefined;
+        },
       },
     },
   },
