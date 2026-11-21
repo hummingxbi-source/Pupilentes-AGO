@@ -50,7 +50,6 @@ async function skuLibre() {
 }
 
 let duena, ayudante;
-const pedidosSinStock = [];
 const ML_SIMPLE = 'MLM100100', TT_PROD = '1730000000000000001', TT_SKU_B = '1730000000000000102';
 async function conectar(f) {
   const { datos: { url } } = await fn(f, { accion: 'conectar' }, { token: duena.aal2 });
@@ -60,11 +59,7 @@ async function conectar(f) {
 }
 
 test('preparación: cuentas del panel y canales conectados (sin sincronizar)', async () => {
-  // Remedio de H14: pruebas anteriores (fase3: pago tardío sin stock) dejan apartados activos de pedidos
-  // pagado_sin_stock; se dejan vencer y el cron real los libera, para partir de I1–I3 en verde.
-  await db.query(`update public.reservas_stock set expira_en = now() - interval '1 second' where estado = 'activa' and pedido_id in (select id from public.pedidos where estado = 'pagado_sin_stock')`);
-  await cron();
-  assert.deepEqual(await reglasStock(), [], 'I1–I3 al empezar');
+  assert.deepEqual(await reglasStock(), [], 'I1–I3 al empezar (H14 arreglado: fase3 ya no deja apartados colgados)');
   duena = await cuentaPanel('duena');
   ayudante = await cuentaPanel('ayudante');
   await conectar('panel-ml');
@@ -90,13 +85,8 @@ test('X2 · última pieza: compra web y venta de ML en el mismo instante (5 rond
       await esperar(async () => !['pendiente_pago'].includes(await estado(web.datos.folio)));
       final = await estado(web.datos.folio);
     }
-    let s = await stock(v.sku);
+    const s = await stock(v.sku);
     resultados.push({ web: web.status === 200 ? final : `rechazado ${web.status} ${web.datos?.error}`, stock: s.stock, apartado: s.stock_reservado, I1_intermedio: intermedio.length ? intermedio[0] : 'ok' });
-    if (final === 'pagado_sin_stock') {   // H14: su apartado sigue activo; se deja que el cron lo libere al vencer
-      await db.query(`update public.reservas_stock set expira_en = now() - interval '1 second' where pedido_id = (select id from public.pedidos where folio = $1) and estado = 'activa'`, [web.datos.folio]);
-      await cron();
-      s = await stock(v.sku);
-    }
     assert.ok(s.stock >= 0, 'el stock no baja de 0');
     assert.deepEqual(await reglasStock(v.sku), [], `I1/I3 al final de la ronda ${i + 1}`);
     if (web.status === 200) assert.ok(['pagado_sin_stock', 'pagado'].includes(final), `el pago web cae en pagado_sin_stock (o pagado si ML no la descontó): ${final}`);
@@ -127,32 +117,9 @@ test('X2 · última pieza apartada por la web y vendida en ML en ese mismo segun
     assert.ok(s1.stock >= 0 && s2.stock >= 0, 'no baja de 0');
     assert.equal(final, 'pagado_sin_stock', 'el pago web tardío cae en pagado_sin_stock');
     assert.ok(alerta, 'hay alerta mientras la pieza apartada ya se vendió en ML');
-    pedidosSinStock.push(web.datos.folio);
-    // El apartado de un pedido pagado_sin_stock queda activo (H14, prueba aparte): lo libera el cron al vencer.
-    await db.query(`update public.reservas_stock set expira_en = now() - interval '1 second' where pedido_id = (select id from public.pedidos where folio = $1) and estado = 'activa'`, [web.datos.folio]);
-    await cron();
+    assert.deepEqual(await reglasStock(v.sku), [], 'I1–I3 justo después del pago (H14: el apartado se liberó)');
   }
   t.diagnostic(JSON.stringify(rondas));
-});
-
-// H14: al caer en pagado_sin_stock, confirmar_pago no libera el apartado que el pedido ya tenía (queda activo hasta
-// que vence: stock 0 y apartado 1, I1 rota hasta 30 min). `todo` mientras siga abierto.
-test('X2 · H14 · un pedido que cae en pagado_sin_stock libera su apartado en ese momento', { todo: 'H14 abierto: privado.confirmar_pago no llama a liberar_reserva al caer en pagado_sin_stock' }, async () => {
-  const v = await skuLibre();
-  assert.equal((await fn('panel-ml', { accion: 'vincular', item: ML_SIMPLE, sku: v.sku, logistica: 'propia' }, { token: duena.aal2 })).status, 200);
-  await cron();
-  await fijarStock(v.sku, 1);
-  const web = await fn('pedidos-crear', cuerpoPedido(v));
-  const venta = await ml('/simular/venta', { item: ML_SIMPLE, cantidad: 1 });
-  await esperar(async () => (await uno(`select 1 as ok from public.movimientos_stock where ref_externa like $1`, [`ml:${venta.orden}:%`])) !== undefined, 5000);
-  await pagarEnSim(web.datos.url_pago, 'approved');
-  await esperar(async () => (await estado(web.datos.folio)) === 'pagado_sin_stock');
-  try {
-    assert.deepEqual(await reglasStock(v.sku), [], 'I1–I3 justo después del pago');
-  } finally {
-    await db.query(`update public.reservas_stock set expira_en = now() - interval '1 second' where pedido_id = (select id from public.pedidos where folio = $1) and estado = 'activa'`, [web.datos.folio]);
-    await cron();
-  }
 });
 
 // ------------------------------------------------------------------------------------------- X3
@@ -323,9 +290,6 @@ test('X9 · el mismo aviso de pago llega 2 veces A LA VEZ (5 rondas): un solo mo
 });
 
 test('al final: I1–I3 en todas las variantes', async () => {
-  // Remedio de H14 (solo pedidos pagado_sin_stock): sus apartados los libera el cron al vencer
-  await db.query(`update public.reservas_stock set expira_en = now() - interval '1 second' where estado = 'activa' and pedido_id in (select id from public.pedidos where estado = 'pagado_sin_stock')`);
-  await cron();
   assert.deepEqual(await reglasStock(), []);
   void SIM;
 });

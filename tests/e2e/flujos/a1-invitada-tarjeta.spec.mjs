@@ -115,8 +115,7 @@ test('U4 · invitada compra con tarjeta aprobada y envío por paquetería; U13 r
   const p = await uno('select subtotal, envio, descuento, total from public.pedidos where id = $1', [ped.id]);
   expect(Number(p.subtotal)).toBe(lente.precio);
   expect(Number(p.total)).toBe(Number(p.subtotal) + Number(p.envio) - Number(p.descuento));
-  // El botón mostró ese total (a menos de un peso: hoy redondea; la exactitud la vigila la prueba de H4).
-  expect(Math.abs(Number(ped.total) - totalVisto), 'el botón mostró el total').toBeLessThan(1);
+  expect(totalVisto, 'el botón mostró exactamente el total que se cobró (H4)').toBe(Number(ped.total));
   await pagoCuadra(ped.id);
   const despues = await stockDe(lente.sku);
   expect(despues.stock, 'stock −1').toBe(antes.stock - 1);
@@ -225,11 +224,8 @@ test('U5 · el pago aprobado llega y la clienta vuelve con la URL de rechazo: ma
   await expect(page.getByRole('heading', { name: 'Pago confirmado' })).toBeVisible();
 });
 
-// ------------------------------------------------------------------------------- hallazgo H4
-// Se espera que FALLE mientras H4 siga abierto (mxn() redondea a pesos). Cuando se arregle, Playwright
-// avisará "expected to fail but passed" y hay que quitar el test.fail.
+// ------------------------------------------------------------------------------- hallazgo H4 (arreglado)
 test('H4 · con envío con centavos, el botón y el resumen muestran el total exacto que se cobra', async ({ page }) => {
-  test.fail(true, 'H4 abierto: mxn() redondea a pesos (src/lib/catalog.js)');
   const lente = await lenteCon();
   await agregarDesdeFicha(page, lente.tono);
   await page.getByRole('button', { name: 'Elegir entrega' }).click();
@@ -247,7 +243,7 @@ test('H4 · con envío con centavos, el botón y el resumen muestran el total ex
   await page.locator('button.opt', { hasText: '·' }).filter({ hasText: '$' }).first().click();
   await page.getByRole('button', { name: 'Ir al pago' }).click();
   const precioEnvio = Number(opciones[0].precio);
-  test.skip(Number.isInteger(precioEnvio), 'la cotización salió en pesos enteros');
+  test.skip(Number.isInteger(precioEnvio), 'la cotización salió en pesos enteros');   // el simulador cotiza con centavos
   const exacto = (lente.precio + precioEnvio).toLocaleString('es-MX', { minimumFractionDigits: 2 });
   await expect(page.locator('.cx-sum .sum.t')).toContainText(exacto, { timeout: 2000 });
 });

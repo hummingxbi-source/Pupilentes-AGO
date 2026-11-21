@@ -36,10 +36,6 @@ const TT_PROD = '1730000000000000001', TT_SKU_A = '1730000000000000101', TT_SKU_
 const SKU_K = 'UL-MINT-GREEN-ANU-N', SKU_T = 'UL-STORM-GRAY-ANU-N';
 
 let duena;
-/** Remedio manual de H11: borra el secreto de Vault que dejó *_desconectar (ya vacío) para poder reconectar. */
-const limpiarSecretoHuerfano = (canal) => db.query(
-  `delete from vault.secrets where name like $1 and id not in (select secreto_vault from privado.integraciones where secreto_vault is not null)`,
-  [canal === 'ml' ? 'ml_tokens_%' : 'tt_tokens_%']);
 async function conectar(canal) {
   const f = canal === 'ml' ? 'panel-ml' : 'panel-tiktok';
   const { datos: { url } } = await fn(f, { accion: 'conectar' }, { token: duena.aal2 });
@@ -54,10 +50,8 @@ const vincular = (canal, item, variacion, sku, logistica = 'propia') =>
 test('preparación: SKU de prueba existen; ML y TikTok conectados y vinculados (sin sincronizar)', async () => {
   for (const s of [SKU_K, SKU_T]) assert.ok(await uno('select 1 as ok from public.variantes where sku = $1 and activo', [s]), `falta ${s} en la semilla`);
   duena = await cuentaPanel('duena');
-  for (const c of ['ml', 'tiktok']) {   // si una corrida anterior dejó el canal desconectado (H11)
-    if (!(await uno(`select 1 as ok from privado.integraciones where canal = $1`, [c]))) await limpiarSecretoHuerfano(c);
-    await conectar(c);
-  }
+  await conectar('ml');
+  await conectar('tiktok');
   assert.equal((await vincular('ml', ML_SIMPLE, null, SKU_K)).status, 200);
   assert.equal((await vincular('tiktok', TT_PROD, TT_SKU_A, SKU_T)).status, 200);
   await fn('panel-ml', { accion: 'sincronizacion', activa: false }, { token: duena.aal2 });
@@ -183,9 +177,8 @@ test('K5 · una variante en 2 publicaciones de ML y 1 de TikTok: las 3 reciben e
   }
 });
 
-// H13: al cambiar el colchón, el canal no recibe el número nuevo hasta el siguiente cambio de stock (o la
-// reconciliación de 24 h). Queda como `todo` mientras siga abierto: node:test lo reporta sin fallar la batería.
-test('D15 · H13 · al cambiar el colchón, el canal recibe el número nuevo en la siguiente pasada del cron', { todo: 'H13 abierto: cambiar ml_colchon/tt_colchon no encola la publicación' }, async () => {
+// H13 (arreglado): al cambiar el colchón, el canal recibe el número nuevo en la siguiente pasada del cron.
+test('D15 · H13 · al cambiar el colchón, el canal recibe el número nuevo en la siguiente pasada del cron', async () => {
   await fijarStock(SKU_K, 7);
   await fn('panel-ml', { accion: 'sincronizacion', activa: true }, { token: duena.aal2 });
   await cron();
@@ -307,19 +300,14 @@ test('D15 · desconectar ML: tokens fuera, sincronización apagada y sus ventas 
   assert.equal((await stock(SKU_K)).stock, antes, 'desconectada no mueve stock');
 });
 
-// H11: después de desconectar, volver a conectar la MISMA cuenta truena (500): el secreto de Vault queda con su
-// nombre y ml_guardar_tokens intenta crearlo otra vez. `todo` mientras siga abierto.
-test('D15 · H11 · después de desconectar, la dueña puede volver a conectar la misma cuenta (ML y TikTok)', { todo: 'H11 abierto: ml_guardar_tokens / tt_guardar_tokens chocan con el secreto que dejó *_desconectar' }, async () => {
-  try {
-    await conectar('ml');                                            // ML se desconectó en la prueba anterior
-    assert.equal((await fn('panel-tiktok', { accion: 'desconectar' }, { token: duena.aal2 })).status, 200);
-    await conectar('tiktok');
-  } finally {
-    // Para que el resto de la batería (simultaneo, maraton) encuentre los dos canales conectados
-    for (const c of ['ml', 'tiktok']) {
-      if (!(await uno(`select 1 as ok from privado.integraciones where canal = $1`, [c]))) { await limpiarSecretoHuerfano(c); await conectar(c); }
-    }
-    await fn('panel-ml', { accion: 'sincronizacion', activa: false }, { token: duena.aal2 });
-    await fn('panel-tiktok', { accion: 'sincronizacion', activa: false }, { token: duena.aal2 });
-  }
+// H11 (arreglado): después de desconectar, la dueña vuelve a conectar la misma cuenta. Deja los dos canales
+// conectados y sin sincronizar para lo que sigue en la batería (simultaneo, maraton).
+test('D15 · H11 · después de desconectar, la dueña puede volver a conectar la misma cuenta (ML y TikTok)', async () => {
+  await conectar('ml');                                              // ML se desconectó en la prueba anterior
+  assert.equal((await fn('panel-ml', { accion: 'estado' }, { token: duena.aal2 })).datos.conectada, true);
+  assert.equal((await fn('panel-tiktok', { accion: 'desconectar' }, { token: duena.aal2 })).status, 200);
+  await conectar('tiktok');
+  assert.equal((await fn('panel-tiktok', { accion: 'estado' }, { token: duena.aal2 })).datos.conectada, true);
+  await fn('panel-ml', { accion: 'sincronizacion', activa: false }, { token: duena.aal2 });
+  await fn('panel-tiktok', { accion: 'sincronizacion', activa: false }, { token: duena.aal2 });
 });
