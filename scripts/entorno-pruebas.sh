@@ -87,7 +87,7 @@ CRON_SECRET=cron-local-solo-desarrollo   # igual a `secreto_cron` de Vault en se
 export MP_NOTIFICATION_URL=$FUNC/webhook-mercadopago
 cat >"$ENVF" <<EOF
 # Generado por scripts/entorno-pruebas.sh: solo valores de PRUEBA y simuladores locales. No se sube al repo.
-ORIGENES_PERMITIDOS=http://localhost:5173,http://127.0.0.1:5173
+ORIGENES_PERMITIDOS=http://localhost:5173,http://127.0.0.1:5173,http://127.0.0.1:4173
 CRON_SECRET=$CRON_SECRET
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 SITIO_URL=http://localhost:5173
@@ -198,7 +198,11 @@ if [ "$BATERIA" = 1 ]; then
   i=0; until [ "$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $SUPABASE_PUBLISHABLE_KEY" "$SUPABASE_URL/rest/v1/catalogo_publico?select=clave&limit=1")" = 200 ] || [ "$i" -ge 60 ]; do sleep 1; i=$((i + 1)); done
   preparar_datos >"$LOGS/datos-flujos.log" 2>&1
   correr flujos npm run test:e2e:flujos -- --reporter=list
+  # U17 (red lenta) mide lo que ve la clienta: el build de producción servido con `vite preview` en :4173
+  fondo vista-previa npx vite preview --host 127.0.0.1 --port 4173 --strictPort
+  esperar http://127.0.0.1:4173/ 30 || aviso "vite preview no arrancó (ver $LOGS/vista-previa.log)."
   correr flujos-movil npx playwright test tests/e2e/flujos/u17-movil.spec.mjs --project=android --project=iphone --reporter=list
+  [ -f "$DIR/vista-previa.pid" ] && kill "$(cat "$DIR/vista-previa.pid")" 2>/dev/null; rm -f "$DIR/vista-previa.pid"
   # Las pruebas dejan pedidos y cuentas en la BD: se reinicia para la prueba a mano.
   supabase db reset >"$LOGS/db-reset-2.log" 2>&1 && bien "BD reiniciada otra vez para probar a mano" || aviso "No se pudo reiniciar la BD tras la batería."
 else
