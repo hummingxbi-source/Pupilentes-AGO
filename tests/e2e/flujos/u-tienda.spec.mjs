@@ -347,9 +347,10 @@ test('U18 · sin internet al pagar: mensaje claro y no se crea un pedido a media
   expect((await bolsaGuardada(page)).length).toBe(1);
 });
 
-test('U18 · Turnstile bloqueado (bloqueador de anuncios): la clienta ve un mensaje, no solo un botón apagado', async ({ page, context }) => {
-  test.fail(true, 'H6 abierto: si Turnstile no carga, la caja no dice nada (src/lib/Turnstile.jsx)');
-  await context.route(/challenges\.cloudflare\.com/, (r) => r.abort());
+test('U18 · H6 · Turnstile bloqueado (bloqueador de anuncios): la clienta ve un aviso y puede reintentar', async ({ page, context, vigia }) => {
+  vigia.permitir(/consola: Failed to load resource: net::ERR_FAILED/);
+  let bloqueado = true;
+  await context.route(/challenges\.cloudflare\.com/, (r) => (bloqueado ? r.abort() : r.continue()));
   const lente = await lenteCon();
   await agregarDesdeFicha(page, lente.tono);
   await page.getByRole('button', { name: 'Elegir entrega' }).click();
@@ -357,5 +358,12 @@ test('U18 · Turnstile bloqueado (bloqueador de anuncios): la clienta ve un mens
   await page.getByRole('button', { name: /Entrega en Metro/ }).click();
   await page.getByRole('button', { name: 'Ir al pago' }).click();
   await expect(page.getByRole('button', { name: /Pagar .* con Mercado Pago/ })).toBeDisabled();
-  await expect(page.getByRole('alert')).toBeVisible({ timeout: 5000 });
+  const aviso = page.getByRole('alert').filter({ hasText: 'No pudimos cargar la verificación de seguridad.' });
+  await expect(aviso).toBeVisible({ timeout: 10_000 });
+  await expect(aviso).toContainText('bloqueador de anuncios');
+  // Quita el bloqueo y reintenta: la verificación carga y el botón se habilita.
+  bloqueado = false;
+  await aviso.getByRole('button', { name: 'Reintentar' }).click();
+  await expect(aviso).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Pagar .* con Mercado Pago/ })).toBeEnabled({ timeout: 20_000 });
 });
