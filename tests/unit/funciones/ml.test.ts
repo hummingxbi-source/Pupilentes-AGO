@@ -10,7 +10,7 @@ const CFG: ConfigML = { appId: '123', secreto: 's', redirect: 'https://tienda/pa
 function bd({ rpc = {} as Rpc, rol = 'duena' as string | null } = {}) {
   const llamadas: { rpc: string; args: Record<string, unknown> }[] = [];
   const admin = {
-    auth: { getClaims: async (t: string) => t === 'jwt-valido' ? { data: { claims: { sub: 'u-1', role: 'authenticated', aal: 'aal2' } }, error: null } : { data: null, error: { message: 'x' } } },
+    auth: { getClaims: async (t: string) => t === 'jwt-valido' ? { data: { claims: { sub: 'u-1', role: 'authenticated', session_id: 's-1', aal: 'aal2' } }, error: null } : { data: null, error: { message: 'x' } } },
     from: (tabla: string) => {
       const q: Record<string, unknown> = {};
       for (const m of ['select', 'eq', 'order', 'limit', 'insert']) q[m] = () => q;
@@ -20,6 +20,7 @@ function bd({ rpc = {} as Rpc, rol = 'duena' as string | null } = {}) {
       return q;
     },
     rpc: async (nombre: string, args: Record<string, unknown>) => {
+      if (nombre === 'sesion_vigente') return { data: true, error: null };   // H16: sesión viva
       llamadas.push({ rpc: nombre, args });
       if (nombre === 'consumir_limite') return { data: true, error: null };
       const r = rpc[nombre]?.(args);

@@ -18,9 +18,10 @@ function bd({ rol = 'duena' as Rol, aal = 'aal2', rpc = {} as Record<string, (a:
     return q;
   };
   const admin = {
-    auth: { getClaims: async (t: string) => t === 'jwt-valido' ? { data: { claims: { sub: 'u-1', role: 'authenticated', aal } }, error: null } : { data: null, error: { message: 'x' } } },
+    auth: { getClaims: async (t: string) => t === 'jwt-valido' ? { data: { claims: { sub: 'u-1', role: 'authenticated', session_id: 's-1', aal } }, error: null } : { data: null, error: { message: 'x' } } },
     from: consulta,
     rpc: async (nombre: string, args: unknown) => {
+      if (nombre === 'sesion_vigente') return { data: true, error: null };   // H16: sesión viva
       llamadas.push({ rpc: nombre, args });
       if (nombre === 'consumir_limite') return { data: true, error: null };
       const r = rpc[nombre]?.(args);

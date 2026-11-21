@@ -14,7 +14,7 @@ type Rpc = Record<string, (a: Record<string, unknown>) => unknown>;
 function bd({ rpc = {} as Rpc, filas = {} as Record<string, unknown>, rol = 'duena' as string | null, limite = true } = {}) {
   const llamadas: { rpc: string; args: Record<string, unknown> }[] = [];
   const admin = {
-    auth: { getClaims: async (t: string) => t === 'jwt-valido' ? { data: { claims: { sub: 'u-1', role: 'authenticated', aal: 'aal2' } }, error: null } : { data: null, error: { message: 'x' } } },
+    auth: { getClaims: async (t: string) => t === 'jwt-valido' ? { data: { claims: { sub: 'u-1', role: 'authenticated', session_id: 's-1', aal: 'aal2' } }, error: null } : { data: null, error: { message: 'x' } } },
     from: (tabla: string) => {
       const q: Record<string, unknown> = {};
       for (const m of ['select', 'eq', 'not', 'order', 'limit', 'in']) q[m] = () => q;
@@ -22,6 +22,7 @@ function bd({ rpc = {} as Rpc, filas = {} as Record<string, unknown>, rol = 'due
       return q;
     },
     rpc: async (nombre: string, args: Record<string, unknown>) => {
+      if (nombre === 'sesion_vigente') return { data: true, error: null };   // H16: sesión viva
       llamadas.push({ rpc: nombre, args });
       if (nombre === 'consumir_limite') return { data: limite, error: null };
       const r = rpc[nombre]?.(args);

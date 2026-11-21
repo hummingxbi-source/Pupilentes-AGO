@@ -5,7 +5,7 @@ import { encabezadosCors, manejarCors } from '../../../supabase/functions/_share
 import { verificarTurnstile } from '../../../supabase/functions/_shared/turnstile.ts';
 import { leerJson, z } from '../../../supabase/functions/_shared/validar.ts';
 import { exigirLimite, ipCliente } from '../../../supabase/functions/_shared/limite.ts';
-import { decidirAccesoPanel, exigirSecretoCron, exigirUsuario, llaveSupabase } from '../../../supabase/functions/_shared/auth.ts';
+import { decidirAccesoPanel, exigirPanel, exigirSecretoCron, exigirUsuario, llaveSupabase } from '../../../supabase/functions/_shared/auth.ts';
 import type { SupabaseClient } from '../../../supabase/functions/_shared/deps.ts';
 
 const TIENDA = ['http://localhost:5173'];
@@ -102,4 +102,20 @@ Deno.test('Llaves: diccionario JSON nuevo y respaldo local', () => {
   Deno.env.set('SUPABASE_SECRET_KEY', 'sb_secret_local');
   assert.equal(llaveSupabase('SECRET'), 'sb_secret_local');
   Deno.env.delete('SUPABASE_SECRET_KEY');
+});
+
+Deno.test('exigirPanel: la sesión tiene que seguir viva, no basta la firma del token (H16)', async () => {
+  const llamadas: unknown[] = [];
+  const admin = (viva: boolean | null, claims: Record<string, unknown> = { sub: 'u-1', role: 'authenticated', aal: 'aal2', session_id: 's-1' }) => falso({
+    auth: { getClaims: async () => ({ data: { claims }, error: null }) },
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { rol: 'duena' }, error: null }) }) }) }),
+    rpc: async (n: string, a: unknown) => { llamadas.push([n, a]); return { data: viva, error: null }; },
+  });
+  const req = pedir({ Authorization: 'Bearer jwt' });
+  const u = await exigirPanel(req, ['duena'], admin(true));
+  assert.equal(u.rol, 'duena');
+  assert.deepEqual(llamadas[0], ['sesion_vigente', { p_sesion: 's-1', p_usuario: 'u-1' }]);
+  await assert.rejects(exigirPanel(req, ['duena'], admin(false)), (e: ErrorHttp) => e.estado === 401 && e.codigo === 'sesion_cerrada');
+  await assert.rejects(exigirPanel(req, ['duena'], admin(null)), (e: ErrorHttp) => e.estado === 401 && e.codigo === 'sesion_cerrada');
+  await assert.rejects(exigirPanel(req, ['duena'], admin(true, { sub: 'u-1', role: 'authenticated', aal: 'aal2' })), (e: ErrorHttp) => e.estado === 401);
 });

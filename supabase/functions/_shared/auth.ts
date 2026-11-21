@@ -36,7 +36,7 @@ export function clienteServicio(): SupabaseClient {
   return _admin;
 }
 
-export interface Usuario { id: string; email?: string; aal: 'aal1' | 'aal2' }
+export interface Usuario { id: string; email?: string; aal: 'aal1' | 'aal2'; sesion?: string }
 
 function tokenBearer(req: Request): string | null {
   const h = req.headers.get('Authorization') ?? '';
@@ -52,9 +52,9 @@ export async function exigirUsuario(req: Request, admin = clienteServicio()): Pr
   const token = tokenBearer(req);
   if (!token) throw new ErrorHttp(401, 'sin_sesion');
   const { data, error } = await admin.auth.getClaims(token);
-  const c = data?.claims as { sub?: string; email?: string; aal?: string; role?: string } | undefined;
+  const c = data?.claims as { sub?: string; email?: string; aal?: string; role?: string; session_id?: string } | undefined;
   if (error || !c?.sub || c.role !== 'authenticated') throw new ErrorHttp(401, 'sesion_invalida');
-  return { id: c.sub, email: c.email, aal: c.aal === 'aal2' ? 'aal2' : 'aal1' };
+  return { id: c.sub, email: c.email, aal: c.aal === 'aal2' ? 'aal2' : 'aal1', ...(c.session_id ? { sesion: c.session_id } : {}) };
 }
 
 /**
@@ -79,6 +79,11 @@ export async function exigirPanel(
   if (error) throw new ErrorHttp(503, 'perfiles_no_disponibles');
   const d = decidirAccesoPanel(usuario, (data as { rol?: string } | null)?.rol ?? null, permitidos);
   if (!d.ok) throw new ErrorHttp(d.estado, d.codigo);
+  // La firma del token no basta: la sesión tiene que seguir viva (no cerrada a mano ni por inactividad). H16.
+  if (!usuario.sesion) throw new ErrorHttp(401, 'sesion_invalida');
+  const { data: viva, error: ev } = await admin.rpc('sesion_vigente', { p_sesion: usuario.sesion, p_usuario: usuario.id });
+  if (ev) throw new ErrorHttp(503, 'sesion_no_disponible');
+  if (viva !== true) throw new ErrorHttp(401, 'sesion_cerrada', 'Tu sesión se cerró. Vuelve a entrar.');
   return { ...usuario, rol: d.rol };
 }
 

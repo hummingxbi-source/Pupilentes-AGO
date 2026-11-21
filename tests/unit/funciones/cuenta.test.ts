@@ -16,6 +16,7 @@ function bd({ rpc = {} as Rpc, limite = true } = {}) {
         : { data: null, error: { message: 'jwt inválido' } },
     },
     rpc: async (nombre: string, args: Record<string, unknown>) => {
+      if (nombre === 'sesion_vigente') return { data: true, error: null };   // H16: sesión viva
       llamadas.push({ rpc: nombre, args });
       if (nombre === 'consumir_limite') return { data: limite, error: null };
       const r = rpc[nombre]?.(args);

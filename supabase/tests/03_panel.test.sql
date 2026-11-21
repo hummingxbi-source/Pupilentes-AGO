@@ -10,10 +10,16 @@ insert into auth.users (id, email) values
 insert into public.perfiles_panel (user_id, rol) values
   ('30000000-0000-0000-0000-0000000000d1', 'duena'),
   ('30000000-0000-0000-0000-0000000000a1', 'ayudante');
+-- Cada usuaria con su sesión viva en auth.sessions (H16: el panel exige que la sesión del token exista)
+insert into auth.sessions (id, user_id, created_at, updated_at) values
+  ('40000000-0000-0000-0000-0000000000d1', '30000000-0000-0000-0000-0000000000d1', now(), now()),
+  ('40000000-0000-0000-0000-0000000000a1', '30000000-0000-0000-0000-0000000000a1', now(), now()),
+  ('40000000-0000-0000-0000-0000000000c1', '30000000-0000-0000-0000-0000000000c1', now(), now());
 
 create function pg_temp.como(p_sub text, p_aal text) returns void language plpgsql as $$
 begin
-  perform set_config('request.jwt.claims', json_build_object('sub', p_sub, 'role', 'authenticated', 'aal', p_aal)::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', p_sub, 'role', 'authenticated', 'aal', p_aal,
+    'session_id', '40000000' || substr(p_sub, 9))::text, true);
   perform set_config('role', 'authenticated', true);
 end $$;
 create temp table t_ref as select sku, precio from public.variantes where sku = 'UL-ANGELES-N-BLUE-ANU-N';
